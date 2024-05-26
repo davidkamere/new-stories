@@ -16,12 +16,68 @@
   }
 }
 
+
+/* Styles for the main scrollbar */
+::-webkit-scrollbar {
+  width: 10px; /* Width of the scrollbar */
+  background-color: transparent; /* Background color of the scrollbar */
+}
+
+/* Styles for the draggable scrolling element */
+::-webkit-scrollbar-thumb {
+  background-color: #dcdddf;
+  height: 5px; 
+ 
+}
+
+/* ::-webkit-scrollbar-thumb:hover {
+  background-color: white; 
+} */
+
+/* Styles for the empty space below the progress bar */
+::-webkit-scrollbar-track {
+  background-color: transparent; /* Background color of the track */
+}
+
+/* Styles for the top-most layer of the progress bar */
+::-webkit-scrollbar-track-piece {
+  background-color: transparent; /* Background color of the track piece */
+}
+
+/* Styles for the directional buttons on the scrollbar (optional) */
+::-webkit-scrollbar-button {
+  display: none; /* Hide the scrollbar buttons */
+}
+
+/* Styles for the corner where two scrollbars might meet */
+::-webkit-scrollbar-corner {
+  background-color: transparent; /* Background color of the scrollbar corner */
+}
+
+/* Styles for the draggable resizing handle (optional) */
+::-webkit-resizer {
+  display: none; /* Hide the resizer */
+}
+
+@media (max-width: 767px) {
+  ::-webkit-scrollbar,
+  ::-webkit-scrollbar-thumb,
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner,
+  ::-webkit-resizer {
+      display: none;
+  }
+}
+
+
 body {
-  color: rgb(var(--foreground-rgb));
+  /* color: rgb(var(--foreground-rgb));
   background: linear-gradient(
       to bottom,
       transparent,
       rgb(var(--background-end-rgb))
     )
-    rgb(var(--background-start-rgb));
+    rgb(var(--background-start-rgb)); */
+  background: #f9f8f6;
 }
