@@ -106,7 +106,7 @@ const SignInPage = () => {
                 </div>
                 
                 <div className="text-center mt-5">
-                    Don't have an account? <Link href="/signUp" className='text-[#1242c4] '>SignUp</Link>
+                    Don&apos;t have an account? <Link href="/signUp" className="text-[#1242c4]">Sign Up</Link>
                 </div>
             </>
             </motion.form>

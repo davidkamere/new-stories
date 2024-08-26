@@ -10,8 +10,8 @@ const AboutPage = () => {
                 <div className="max-w-2xl mx-auto">
                     <h1 className="text-4xl font-bold mb-10">Welcome to Our Story Hub</h1>
                     <div>
-                        <p className="mb-4 text-gray-800 text-lg font-semibold">We are all here to create amazing stories - together!</p>
-                        <p className="mb-2 ">
+                        <p className="mb-4 text-gray-800 text-lg font-semibold">We are all here to create amazing stories &mdash; together!</p>
+                        <p className="mb-2">
                             Feel free to add to any story or start your own, but remember that anyone can then add to it!
                         </p>
                         <p className="mb-2">
@@ -27,12 +27,12 @@ const AboutPage = () => {
                             Please choose the genre and respect it. If the story contains adult themes, make it clear.
                         </p>
                         <p className="mb-2">
-                            No feedback or 'likes' here. We work together, accept others' work, and remain resilient.
+                            No feedback or &apos;likes&apos; here. We work together, accept others&apos; work, and remain resilient.
                         </p>
                         <p className="mb-2">
                             If a story is in progress, find another one. Each part submitted cannot be edited, but new parts can be added.
                         </p>
-                        <div className="font-semibold ">
+                        <div className="font-semibold">
                             <p className="mt-4 mb-2">Start your own story and enjoy the unexpected twists from other contributors!</p>
                             <p className="mb-4">We collaborate, move on, and most importantly, have fun!</p>
                         </div>
