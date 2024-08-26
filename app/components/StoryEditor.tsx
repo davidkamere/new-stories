@@ -30,7 +30,7 @@ type TiptapProps = {
     }
 }
 
-const yDoc = new Y.Doc();
+
 
 const StoryEditor = (props: TiptapProps) => {
    
@@ -43,7 +43,7 @@ const StoryEditor = (props: TiptapProps) => {
     
     useEffect(() => {
         if(story?.room_id?.length > 0){
-
+            const yDoc = new Y.Doc();
             const provider = new YPartyKitProvider(
                 'https://stories-party.davidkamere.partykit.dev',
                 story.room_id.toString(),
