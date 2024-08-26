@@ -1,0 +1,10 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "stories-party",
+  "main": "src/server.ts",
+  "compatibilityDate": "2024-08-25",
+  "serve": {
+    "path": "public",
+    "build": "src/client.ts"
+  }
+}

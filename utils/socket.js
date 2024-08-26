@@ -1,20 +1,16 @@
-import { io } from 'socket.io-client'
+import PartySocket from "partysocket";
 
-let socket
+// const PARTYKIT_HOST = "ws://127.0.0.1:1999";
+const PARTYKIT_HOST = "https://stories-party.davidkamere.partykit.dev";
 
 export const setUpSocket = () => {
     
-    socket = io('http://137.184.185.173:80')
-
-
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        // Send a test message
-        socket.emit('test', 'This is a test message from client');
+    const conn = new PartySocket({
+        host: PARTYKIT_HOST,
+        room: "my-new-room",
     });
 
 
-    return socket
 
-
+    return conn
 }

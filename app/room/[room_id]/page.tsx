@@ -14,7 +14,7 @@ import { motion } from "framer-motion"
 
 
 import Modal from 'react-modal';
-import { get } from "http"
+
 
 
 const customStyles = {
@@ -65,27 +65,33 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const specialChannelName = 'roomInfo: ' + room_id;
     const saveEditsChannel = 'saveEdits: ' + room_id;
 
-    socket.on(specialChannelName, (data: any) => {
-        if(data["activeUser"] && user){
-            if(data["activeUser"] !== user.data.session.user.email){
-                setEditable(false)
-            } else {
-                setEditable(true)
-                setCurrentlyEditing(true)
-            }
-        } else {
+    
 
-            // return to default state
-            setEditable(true)
-            setCurrentlyEditing(false)
-        }
+    // socket.on(specialChannelName, (data: any) => {
+    //     if(data["activeUser"] && user){
+    //         if(data["activeUser"] !== user.data.session.user.email){
+    //             setEditable(false)
+    //         } else {
+    //             setEditable(true)
+    //             setCurrentlyEditing(true)
+    //         }
+    //     } else {
 
-        if (data["typedContent"]) {setContent(data["typedContent"])}
-    })
+    //         // return to default state
+    //         setEditable(true)
+    //         setCurrentlyEditing(false)
+    //     }
 
-    socket.on(saveEditsChannel, (data: any) => {
-        getStoryfromDB()
-    })
+    //     if (data["typedContent"]) {setContent(data["typedContent"])}
+    // })
+
+    // socket.on(saveEditsChannel, (data: any) => {
+    //     getStoryfromDB()
+    // })
+
+    socket.addEventListener("message", (event) => {
+       console.log(`Received -> ${event.data}`);
+    });
 
     useEffect(() => {
         getStoryfromDB()
@@ -123,7 +129,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
         setClearContent(true)
         
         closeModal()
-        socket.emit('saveEdits', {room_id: room_id})
+        // socket.emit('saveEdits', {room_id: room_id})
     }
 
     const deleteEdits = () => {

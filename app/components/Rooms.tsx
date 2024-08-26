@@ -10,7 +10,6 @@ import { getRooms } from "@/utils/db/actions"
 
 import Story from "@/app/components/Story"
 import { motion } from "framer-motion";
-import { setUpSocket } from "@/utils/socket"
 
 
 const Rooms = () => {
@@ -18,7 +17,6 @@ const Rooms = () => {
     const [payload, setPayload] = useState<any>(null)
 
 
-    const socket = setUpSocket()
 
     useEffect(() => {
         getRoomsFromDb()
@@ -50,7 +48,6 @@ const Rooms = () => {
         };
     }, [])
 
-    console.log(socket)
     return (
         <>
             <div >

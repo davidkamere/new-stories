@@ -9,9 +9,11 @@ import { EditorContent } from '@tiptap/react'
 import { UUID } from 'crypto'
 import { useEffect, useState } from 'react'
 import { setUpSocket } from '@/utils/socket'
+import YPartyKitProvider from "y-partykit/provider"
+import * as Y from "yjs"
 
 
-const socket = setUpSocket()
+// const socket = setUpSocket()
 
 type TiptapProps = {
     editable: boolean,
@@ -28,6 +30,8 @@ type TiptapProps = {
     }
 }
 
+const yDoc = new Y.Doc();
+
 const StoryEditor = (props: TiptapProps) => {
    
     const { story, clearContent, setCurrentlyEditing, setClearContent, user, editable } = props
@@ -40,15 +44,18 @@ const StoryEditor = (props: TiptapProps) => {
     useEffect(() => {
         if(story?.room_id?.length > 0){
 
-            const provider = new HocuspocusProvider({
-                url: 'ws://127.0.0.1:1234',
-                name: story.room_id.toString(),
-                parameters: {
-                    user: user.data.session.user.email,
-                    room_id: story.room_id,
+            const provider = new YPartyKitProvider(
+                'https://stories-party.davidkamere.partykit.dev',
+                story.room_id.toString(),
+                yDoc,
+                {
+                    params: {
+                        user: user.data.session.user.email,
+                        room_id: story.room_id,
+                    }
                 }
 
-            })
+            )
 
 
             const editor = new Editor({ 
@@ -59,7 +66,7 @@ const StoryEditor = (props: TiptapProps) => {
                     }),
                     // Register the document with Tiptap
                     Collaboration.configure({
-                        document: provider.document,
+                        document: provider.doc,
                     }),
                   
                 ],
@@ -109,7 +116,7 @@ const StoryEditor = (props: TiptapProps) => {
         console.log('clearing: Story Editor')
         setCurrentlyEditing(false)
         await editor?.commands.clearContent(true)
-        socket.emit('clearChannel', {room_id: story.room_id})
+        // socket.emit('clearChannel', {room_id: story.room_id})
         setClearContent(false)
     }
 
