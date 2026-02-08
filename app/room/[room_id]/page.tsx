@@ -375,21 +375,36 @@ export default function Page({ params }: { params: { room_id: string } }) {
             
             <Header/>
             <Modal isOpen={isOpen} onRequestClose={closeModal} style={customStyles} >
-                        <div className="flex items-center justify-center w-full">
-                        <div className="text-center p-4 w-[90vw] max-w-[520px]">
-                            <p className="font-base text-lg ">Are you sure you want to add this to the story?</p>
-                            
-                            <div className="flex flex-col font-base space-y-4 md:space-y-0 md:space-x-10 md:flex-row md:justify-between mt-6">
-                                <button className="justify-center bg-red-300 border-black flex  border  rounded-lg py-2.5 px-7 shadow-[1px_5px_1px_0_black] hover:shadow-none transform transition duration-300 ease-in-out" onClick={deleteEdits}>No, Clear</button>
-                                <button className="justify-center bg-[#c3f680]  border-black flex   border  rounded-lg py-2.5 px-7 shadow-[1px_5px_1px_0_black] hover:shadow-none transform transition duration-300 ease-in-out" onClick={saveEdits}>Yes, Save</button>
-                            </div>
-                            {saveError && (
-                                <div className="mt-4 text-sm text-red-600">
-                                    {saveError}
-                                </div>
-                            )}
+                <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[520px]">
+                    <div className="text-xs uppercase tracking-[0.3em] text-[#6acb25]">Confirm</div>
+                    <div className="ink-title text-2xl mt-2 text-[#1b1a17]">Add this to the story?</div>
+                    <p className="text-sm text-[#8f7f74] mt-2">
+                        Once submitted, this piece can’t be edited — but others can build on it.
+                    </p>
+
+                    {saveError && (
+                        <div className="mt-4 text-sm text-red-600">
+                            {saveError}
                         </div>
-                        </div>
+                    )}
+
+                    <div className="flex flex-col md:flex-row md:justify-between gap-3 mt-6">
+                        <button
+                            type="button"
+                            className="px-5 py-2 rounded-full text-sm border border-[#d7d0c7] bg-white/70"
+                            onClick={deleteEdits}
+                        >
+                            Clear Draft
+                        </button>
+                        <button
+                            type="button"
+                            className="stamp px-5 py-2 rounded-full text-sm border border-black bg-[#b6ff4b]"
+                            onClick={saveEdits}
+                        >
+                            Add to Story
+                        </button>
+                    </div>
+                </div>
             </Modal>
             <Modal isOpen={isForkOpen} onRequestClose={closeForkModal} style={customStyles}>
                 <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[520px]">

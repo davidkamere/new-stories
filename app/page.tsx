@@ -18,7 +18,9 @@ export default function Home() {
             <OpeningLines />
           </div>
           <details className="mt-6">
-            <summary className="cursor-pointer text-sm text-[#1b1a17] font-semibold">How it works</summary>
+            <summary className="cursor-pointer text-sm font-semibold summary-green">
+              How it works
+            </summary>
             <div className="mt-3 text-sm text-[#8f7f74] space-y-2">
               <p>Pick a story, choose a pen name, and claim the turn.</p>
               <p>Continue a paragraph or start a new one — your line stays, the story evolves.</p>

@@ -127,6 +127,14 @@ main, header, .paper-bg {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.summary-green {
+  color: #6acb25 !important;
+}
+
+.summary-green::marker {
+  color: #6acb25 !important;
+}
+
 .lift-card {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }

@@ -158,14 +158,21 @@ const CreateRoom = (props: CreateRoomProps) => {
                         required
                         className="border w-full bg-white border-[#d7d0c7] p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#b6ff4b] placeholder:font-light placeholder:text-base"
                     />
-                    <motion.div whileHover={{ y: 1}}>
+                    <div className="flex flex-col md:flex-row md:justify-between gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={closeModal}
+                            className="px-5 py-2 rounded-full text-sm border border-[#d7d0c7] bg-white/70"
+                        >
+                            Cancel
+                        </button>
                         <button
                             type="submit"
-                            className="stamp w-full px-6 py-3 border border-black bg-[#b6ff4b] font-semibold rounded-2xl shadow-[2px_6px_1px_0_black] hover:shadow-none transform transition duration-300 ease-in-out"
+                            className="px-5 py-2 rounded-full text-sm border border-[#b6ff4b] bg-[#f1ffd9] text-[#1b1a17] hover:bg-[#e4ffb8] transition"
                         >
-                            Create New Story
+                            Start Story
                         </button>
-                    </motion.div>
+                    </div>
                 </div>
                 </form>
             </Modal>

@@ -12,7 +12,7 @@ const AboutPage = () => {
                     <div>
                         <p className="mb-4 text-[#2b2926] text-lg font-semibold">Grab a pen name and jump in &mdash; this is a shared sandbox for wild, wonderful stories.</p>
                         <div className="mt-6">
-                        <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74] mb-2">How it works</div>
+                        <div className="text-xs uppercase tracking-[0.3em] text-[#6acb25] mb-2">How it works</div>
                             <ul className="text-[#8f7f74] space-y-2 text-sm">
                                 <li>Start a new tale or hop into one already rolling.</li>
                                 <li>When you add a line, it&apos;s locked in &mdash; but the story keeps growing.</li>
@@ -20,7 +20,7 @@ const AboutPage = () => {
                             </ul>
                         </div>
                         <div className="mt-6">
-                        <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74] mb-2">House rules</div>
+                        <div className="text-xs uppercase tracking-[0.3em] text-[#6acb25] mb-2">House rules</div>
                             <ul className="text-[#8f7f74] space-y-2 text-sm">
                                 <li>Pick a genre and stay in its vibe.</li>
                                 <li>If it gets spicy, say so.</li>
@@ -29,9 +29,9 @@ const AboutPage = () => {
                         </div>
                         <div className="mt-6">
                             <details>
-                                <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-[#8f7f74]">
-                                    Features
-                                </summary>
+                            <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] summary-green">
+                                <span className="summary-green">Features</span>
+                            </summary>
                                 <div className="mt-3 text-sm text-[#8f7f74] space-y-2">
                                     <p><strong>Reading Mode</strong> — focus on the story by hiding the editor and controls.</p>
                                     <p><strong>Fork Story</strong> — branch any story into a new one and keep the original intact.</p>
