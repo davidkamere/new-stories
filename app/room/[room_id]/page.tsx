@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 
 import StoryEditor from "@/app/components/StoryEditor"
 import Header from "@/app/components/Header"
@@ -117,14 +117,14 @@ export default function Page({ params }: { params: { room_id: string } }) {
     //     getStoryfromDB()
     // })
 
+    const getStoryfromDB = useCallback(async () => {
+        const Story = await getStory(room_id)
+        if (Story) { setStory(Story[0]) }
+    }, [room_id])
+
     useEffect(() => {
         getStoryfromDB()
-    }, [])
-    
-    const getStoryfromDB = async () => {
-        const Story = await getStory(room_id)
-        if(Story){setStory(Story[0])}
-    }
+    }, [getStoryfromDB])
 
     const colorForAuthor = (name: string) => {
         let hash = 0
@@ -244,7 +244,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
         return () => {
             channel.unsubscribe().catch(() => {})
         }
-    }, [room_id])
+    }, [room_id, supabase])
 
     useEffect(() => {
         let intervalId: ReturnType<typeof setInterval> | null = null
@@ -290,7 +290,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
         return () => {
             if (intervalId) clearInterval(intervalId)
         }
-    }, [lockState, content, penName, lockCountdown])
+    }, [lockState, content, penName, lockCountdown, room_id])
 
 
     const saveContributionToDB = async (content: string) => {

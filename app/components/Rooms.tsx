@@ -144,16 +144,17 @@ const Rooms = () => {
                 {rooms?.length > 0  ?
                     <>
                     <div className="mt-6 flex flex-wrap gap-2">
-                        {[
-                            'All',
-                            ...Array.from(
-                                new Set(
-                                    rooms
-                                        .map((r: any) => r.genre)
-                                        .filter((g: any): g is string => Boolean(g))
-                                )
-                            ),
-                        ].map((g) => (
+                        {(() => {
+                            const uniqueGenres = new Set<string>()
+                            rooms.forEach((r: any) => {
+                                if (typeof r?.genre === 'string' && r.genre.trim()) {
+                                    uniqueGenres.add(r.genre)
+                                }
+                            })
+
+                            const genres: string[] = ['All', ...Array.from(uniqueGenres)]
+
+                            return genres.map((g) => (
                             <button
                                 key={g}
                                 type="button"
@@ -162,7 +163,8 @@ const Rooms = () => {
                             >
                                 {g}
                             </button>
-                        ))}
+                            ))
+                        })()}
                     </div>
                     <div className="mt-6 space-y-6">
                         {

@@ -5,7 +5,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { EditorContent } from '@tiptap/react'
 import { UUID } from 'crypto'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 
 
 // const socket = setUpSocket()
@@ -38,7 +38,8 @@ const StoryEditor = (props: TiptapProps) => {
 
     
     useEffect(() => {
-        if(story?.room_id?.length > 0){
+        if (editor) return
+        if (story?.room_id?.length > 0) {
             const editor = new Editor({ 
                 extensions: [
                     StarterKit.configure({
@@ -57,7 +58,7 @@ const StoryEditor = (props: TiptapProps) => {
         }
 
         
-    }, [])
+    }, [story?.room_id?.length, editor])
 
     useEffect(() => {
         if (!editor) return
@@ -102,7 +103,7 @@ const StoryEditor = (props: TiptapProps) => {
     }, [editor, hasNotifiedEditStart, onStartEditing, setCurrentlyEditing, editable, clearContent, onContentChange])
 
 
-    const handleClear = async () => {
+    const handleClear = useCallback(async () => {
         console.log('clearing: Story Editor')
         setCurrentlyEditing(false)
         setHasNotifiedEditStart(false)
@@ -110,13 +111,13 @@ const StoryEditor = (props: TiptapProps) => {
         onContentChange?.('')
         // socket.emit('clearChannel', {room_id: story.room_id})
         setClearContent(false)
-    }
+    }, [editor, onContentChange, setClearContent, setCurrentlyEditing])
 
     useEffect(() => {
-        if(clearContent){
+        if (clearContent) {
             handleClear()
         }
-    }, [clearContent])
+    }, [clearContent, handleClear])
 
     
     return (

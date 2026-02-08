@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getStatus } from "@/utils/db/actions";
 
 type StoryProps = {
@@ -20,14 +20,15 @@ const Story = ( {title, content, created_at, genre, room_id, payload} : StoryPro
     const [recentlyActive, setRecentlyActive] = useState<Boolean>(false)
     const [status, setStatus] = useState<any>(null)
 
-    const getStatusFromDb = async () => {
+    const getStatusFromDb = useCallback(async () => {
+        if (!room_id) return
         const dbStatus = await getStatus(room_id as string)
         dbStatus && setStatus(dbStatus[0])
-    }
+    }, [room_id])
 
     useEffect(() => {
         getStatusFromDb()
-    }, [])
+    }, [getStatusFromDb])
 
     useEffect(() => {
         if (payload && payload?.room_id === room_id) {
@@ -50,7 +51,7 @@ const Story = ( {title, content, created_at, genre, room_id, payload} : StoryPro
                 setRecentlyActive(Date.now() - activeAt < 30 * 60 * 1000)
             }
         }
-    }, [payload])
+    }, [payload, room_id])
 
     useEffect(() => {
         if (status && status?.status === 'Complete') {
