@@ -750,7 +750,11 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 )}
                 {!readingMode && lockState === 'self' && content.trim().length === 0 && lockCountdown > 0 && (
                     <div className="text-[#8f7f74] flex text-sm justify-center px-2 transform transition ease-in">
-                        Start typing within {lockCountdown}s to keep the turn.
+                        Start typing within{" "}
+                        <span className="text-[#1b1a17] font-semibold px-1">
+                            {lockCountdown}s
+                        </span>{" "}
+                        to keep the turn.
                     </div>
                 )}
                 {!readingMode && lockState === 'self' && (
