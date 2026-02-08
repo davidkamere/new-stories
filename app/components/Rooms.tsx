@@ -144,7 +144,16 @@ const Rooms = () => {
                 {rooms?.length > 0  ?
                     <>
                     <div className="mt-6 flex flex-wrap gap-2">
-                        {['All', ...Array.from(new Set(rooms.map((r: any) => r.genre).filter(Boolean)))].map((g) => (
+                        {[
+                            'All',
+                            ...Array.from(
+                                new Set(
+                                    rooms
+                                        .map((r: any) => r.genre)
+                                        .filter((g: any): g is string => Boolean(g))
+                                )
+                            ),
+                        ].map((g) => (
                             <button
                                 key={g}
                                 type="button"
