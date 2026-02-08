@@ -18,8 +18,17 @@ const SignUpPage = () => {
     const handleSignUp = async(e: any) => {
         e.preventDefault();
 
+        const emailValue = email.trim();
+        const passwordValue = password.trim();
+        const reenterPasswordValue = reenterPassword.trim();
+
+        if (!emailValue || !passwordValue) {
+            setError('Email and password are required');
+            return;
+        }
+
         // Check if the passwords match
-        if (password !== reenterPassword) {
+        if (passwordValue !== reenterPasswordValue) {
             setError('Passwords do not match');
             return;
         }
@@ -29,8 +38,8 @@ const SignUpPage = () => {
 
         
         await supabase.auth.signUp({
-          email,
-          password,
+          email: emailValue,
+          password: passwordValue,
           options: {
             emailRedirectTo: `${location.origin}/auth/callback`,
           },

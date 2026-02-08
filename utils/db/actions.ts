@@ -53,6 +53,23 @@ export const getStatus = async (room_id: string) => {
 
 }
 
+export const upsertStatus = async (room_id: string, status: string) => {
+    try {
+        let { data, error } = await supabase
+            .from('Status')
+            .upsert([{ room_id, status }], { onConflict: 'room_id' })
+            .select('*')
+
+        if (error) {
+            throw error
+        }
+
+        return data
+    } catch (error: any) {
+        console.error('Error updating status:', error.message)
+    }
+}
+
 
 export const createNewRoom = async (title: string, content: string, genre: string) => {
 
@@ -72,6 +89,7 @@ export const createNewRoom = async (title: string, content: string, genre: strin
                     genre: genre,
                 }
             ])
+            .select('room_id')
 
         if (error) {
             throw error

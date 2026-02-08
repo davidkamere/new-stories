@@ -6,35 +6,42 @@ const AboutPage = () => {
     return (
         <>
             <Header />
-            <div className="min-h-screen bg-[#f9f8f6] mt-10 md:-mt-20 flex flex-col justify-center items-center text-left px-10">
-                <div className="max-w-2xl mx-auto">
-                    <h1 className="text-4xl font-bold mb-10">Welcome to Our Story Hub</h1>
+            <div className="min-h-screen mt-10 md:-mt-20 flex flex-col justify-center items-center text-left px-4 md:px-12">
+                <div className="paper-bg rounded-3xl p-6 md:p-12 max-w-3xl w-full">
+                    <h1 className="ink-title text-4xl md:text-5xl mt-3 mb-6">Welcome to Our Story Hub</h1>
                     <div>
-                        <p className="mb-4 text-gray-800 text-lg font-semibold">We are all here to create amazing stories &mdash; together!</p>
-                        <p className="mb-2">
-                            Feel free to add to any story or start your own, but remember that anyone can then add to it!
-                        </p>
-                        <p className="mb-2">
-                            All stories are <span className="">anonymous</span>, focusing more on the experience than the author.
-                        </p>
-                        <p className="mb-2">
-                            This is a place of acceptance and trust, but also resilience.
-                        </p>
-                        <p className="mb-2">
-                            If you contribute to a story and someone else completes it differently, accept it and move on.
-                        </p>
-                        <p className="mb-2">
-                            Please choose the genre and respect it. If the story contains adult themes, make it clear.
-                        </p>
-                        <p className="mb-2">
-                            No feedback or &apos;likes&apos; here. We work together, accept others&apos; work, and remain resilient.
-                        </p>
-                        <p className="mb-2">
-                            If a story is in progress, find another one. Each part submitted cannot be edited, but new parts can be added.
-                        </p>
-                        <div className="font-semibold">
-                            <p className="mt-4 mb-2">Start your own story and enjoy the unexpected twists from other contributors!</p>
-                            <p className="mb-4">We collaborate, move on, and most importantly, have fun!</p>
+                        <p className="mb-4 text-[#2b2926] text-lg font-semibold">Grab a pen name and jump in &mdash; this is a shared sandbox for wild, wonderful stories.</p>
+                        <div className="mt-6">
+                        <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74] mb-2">How it works</div>
+                            <ul className="text-[#8f7f74] space-y-2 text-sm">
+                                <li>Start a new tale or hop into one already rolling.</li>
+                                <li>When you add a line, it&apos;s locked in &mdash; but the story keeps growing.</li>
+                                <li>If someone takes it somewhere unexpected, roll with it and keep going.</li>
+                            </ul>
+                        </div>
+                        <div className="mt-6">
+                        <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74] mb-2">House rules</div>
+                            <ul className="text-[#8f7f74] space-y-2 text-sm">
+                                <li>Pick a genre and stay in its vibe.</li>
+                                <li>If it gets spicy, say so.</li>
+                                <li>No likes, no ratings &mdash; just storytelling and good vibes.</li>
+                            </ul>
+                        </div>
+                        <div className="mt-6">
+                            <details>
+                                <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-[#8f7f74]">
+                                    Features
+                                </summary>
+                                <div className="mt-3 text-sm text-[#8f7f74] space-y-2">
+                                    <p><strong>Reading Mode</strong> — focus on the story by hiding the editor and controls.</p>
+                                    <p><strong>Fork Story</strong> — branch any story into a new one and keep the original intact.</p>
+                                    <p><strong>Continue vs New Paragraph</strong> — continue appends to the current paragraph; new paragraph starts a fresh line.</p>
+                                    <p><strong>Turns</strong> — only one writer can type at a time to keep the flow clean.</p>
+                                </div>
+                            </details>
+                        </div>
+                        <div className="font-semibold mt-6 text-[#1b1a17]">
+                            Ready? Write a little, read a lot, and enjoy the twists you didn&apos;t see coming.
                         </div>
                     </div>
                 </div>

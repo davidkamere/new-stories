@@ -28,27 +28,43 @@ const SignInPage = () => {
     const handleSignIn = async (e: any) => {
         e.preventDefault();
 
+        const emailValue = email.trim();
+        const passwordValue = password.trim();
+
+        if (!emailValue || !passwordValue) {
+            setError('Email and password are required.');
+            return;
+        }
+
+        setError('');
         setLoading(true);
 
         try {
-            const { error } = await supabase.auth.signInWithPassword({
-                email,
-                password
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: emailValue,
+                password: passwordValue
             });
 
             if (error) {
-                setLoading(false);
                 setError(error.message);
-            } else {
-                // Redirect to the secure page upon successful login
-                router.refresh();
-                
+                return;
             }
-            // setLoading(false);
+
+            const session = data?.session ?? (await supabase.auth.getSession()).data.session;
+            if (!session) {
+                setError('Login succeeded but no session was created. Please try again.');
+                return;
+            }
+
+            setError('');
+            // Redirect to home on success
+            router.push('/');
+            router.refresh();
         } catch (error) {
             console.error('Error during sign-in:', error);
-            setLoading(false);
             setError('An error occurred during sign-in. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 

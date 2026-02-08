@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
-import { Open_Sans, Inter } from 'next/font/google'
+import { Libre_Baskerville, Work_Sans } from 'next/font/google'
 import './globals.css'
 
 
-const inter = Inter({ subsets: ['latin'] })
+const serif = Libre_Baskerville({ subsets: ['latin'], variable: '--font-serif', weight: ['400', '700'] })
+const sans = Work_Sans({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
   title: 'Stories',
@@ -19,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${serif.variable} ${sans.variable}`}>
         {children}
       </body>
     </html>

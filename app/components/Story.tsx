@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { FlagIcon } from "@heroicons/react/20/solid"
-import { motion } from 'framer-motion';
 import { getStatus } from "@/utils/db/actions";
 
 type StoryProps = {
@@ -18,6 +16,8 @@ type StoryProps = {
 const Story = ( {title, content, created_at, genre, room_id, payload} : StoryProps ) => {
 
     const [complete, setComplete] = useState<Boolean>(false)
+    const [typing, setTyping] = useState<Boolean>(false)
+    const [recentlyActive, setRecentlyActive] = useState<Boolean>(false)
     const [status, setStatus] = useState<any>(null)
 
     const getStatusFromDb = async () => {
@@ -36,6 +36,19 @@ const Story = ( {title, content, created_at, genre, room_id, payload} : StoryPro
             } else {
                 setComplete(false)
             }
+            const statusValue = payload?.status || ''
+            if (statusValue.startsWith('Typing:')) {
+                const ts = statusValue.replace('Typing:', '').trim()
+                const typingAt = new Date(ts).getTime()
+                setTyping(Date.now() - typingAt < 2 * 60 * 1000)
+            } else {
+                setTyping(false)
+            }
+            if (statusValue.startsWith('Active:')) {
+                const ts = statusValue.replace('Active:', '').trim()
+                const activeAt = new Date(ts).getTime()
+                setRecentlyActive(Date.now() - activeAt < 30 * 60 * 1000)
+            }
         }
     }, [payload])
 
@@ -45,7 +58,42 @@ const Story = ( {title, content, created_at, genre, room_id, payload} : StoryPro
         } else {
             setComplete(false)
         }
+        const statusValue = status?.status || ''
+        if (statusValue.startsWith('Typing:')) {
+            const ts = statusValue.replace('Typing:', '').trim()
+            const typingAt = new Date(ts).getTime()
+            setTyping(Date.now() - typingAt < 2 * 60 * 1000)
+        } else {
+            setTyping(false)
+        }
+        if (statusValue.startsWith('Active:')) {
+            const ts = statusValue.replace('Active:', '').trim()
+            const activeAt = new Date(ts).getTime()
+            setRecentlyActive(Date.now() - activeAt < 30 * 60 * 1000)
+        } else {
+            setRecentlyActive(false)
+        }
     }, [status])
+
+    const getContributors = () => {
+        if (!content) return []
+        const regex = /\[pen:([^|\]]+)(?:\|mode:(continue|paragraph))?\]/g
+        const contributors = new Set<string>()
+        let match: RegExpExecArray | null
+        while ((match = regex.exec(content)) !== null) {
+            contributors.add(match[1].trim())
+        }
+        return Array.from(contributors)
+    }
+
+    const contributors = getContributors()
+    const isFull = contributors.length >= 12
+    const genreHue = (() => {
+        const g = (genre || 'story').toString()
+        let hash = 0
+        for (let i = 0; i < g.length; i++) hash = (hash * 31 + g.charCodeAt(i)) | 0
+        return Math.abs(hash) % 360
+    })()
 
    
 
@@ -64,36 +112,48 @@ const Story = ( {title, content, created_at, genre, room_id, payload} : StoryPro
 
     
     return (
-        <div className="w-full">
-            <div className="grid grid-cols-2 mt-2">
-                <div className="text-2xl text-[#261201] font-bold">
-                    {title}
-                </div> 
+        <div className="w-full group">
+            {recentlyActive && (
+                <div className="ribbon inline-flex items-center text-[10px] px-2 py-1 rounded-full mb-4">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#b6ff4b] type-dot mr-2"></span>
+                    Recently active
+                </div>
+            )}
+            <div className="flex items-start justify-between flex-wrap gap-3">
+                <div>
+                    <div className="text-2xl md:text-4xl ink-title text-[#1b1a17]">
+                        {title}
+                    </div>
+                    <div className="text-[10px] md:text-xs mt-2 text-[#8f7f74] uppercase tracking-[0.25em]">
+                        {ukFormattedDate}
+                    </div>
+                </div>
+                <div className="flex flex-col items-end space-y-2">
+                    <span className="text-xs px-3 py-1 rounded-full genre-chip" style={{ ["--genre-hue" as any]: genreHue }}>
+                        #{genre}
+                    </span>
+                    {isFull && (
+                        <span className="text-xs px-3 py-1 rounded-full border border-[#ff8a5c] text-[#ff8a5c]">
+                            Full
+                        </span>
+                    )}
+                </div>
             </div>
 
-            <div className="text-sm mt-2 text-[#866e6e]">{ukFormattedDate}</div>
-            <div className="mt-6 text-base font-normal max-w-fit whitespace-normal">{content?.slice(0, 300)}...</div>
+            <div className="mt-4 md:mt-5 text-sm md:text-base text-[#2b2926] max-h-20 overflow-hidden group-hover:max-h-96 transition-all">
+                {content?.slice(0, 500)}
+            </div>
 
-            <div className="flex flex-row justify-between items-center mt-6 "> 
-
-                { status && complete ?
-                    <div className={`text-sm font-semibold flex flex-row text-[#ffa06c]`}>
-                        Completed <FlagIcon className="pl-2 h-6 w-6" /> 
-                    </div> :
-                    
-                    <motion.div
-                        className={`text-sm font-semibold flex flex-row text-[#a6cf49]`}
-                        animate={{ scale: [1, 1.03, 1.02] }} 
-                        transition={{ duration: 2, repeat: 1, ease: "easeInOut" }}
-                    >
-                        In Progress <FlagIcon className="pl-2 h-6 w-6" /> 
-                    </motion.div>
-                }
-                
-                <button className="text-center text-sm text-[#866e6e] font-bold">
-                        # {genre}
-                </button>
-                                        
+            <div className="flex items-center mt-5 md:mt-6 text-xs md:text-sm text-[#1b1a17] flex-wrap gap-2">
+                <span className="px-3 py-1 rounded-full border border-[#e6e0d9] bg-white/70">
+                    Contributors: {contributors.length}/12
+                </span>
+                {typing && (
+                    <span className="ml-3 inline-flex items-center text-[#6acb25]">
+                        <span className="h-2 w-2 rounded-full bg-[#6acb25] type-dot"></span>
+                        <span className="ml-2">Typing</span>
+                    </span>
+                )}
             </div>
         </div>
     )

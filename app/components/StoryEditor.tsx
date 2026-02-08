@@ -3,24 +3,20 @@
 
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import Collaboration from '@tiptap/extension-collaboration'
-import { HocuspocusProvider } from '@hocuspocus/provider'
 import { EditorContent } from '@tiptap/react'
 import { UUID } from 'crypto'
 import { useEffect, useState } from 'react'
-import { setUpSocket } from '@/utils/socket'
-import YPartyKitProvider from "y-partykit/provider"
-import * as Y from "yjs"
 
 
 // const socket = setUpSocket()
 
 type TiptapProps = {
     editable: boolean,
-    user : any,
     clearContent: any,
     setClearContent: any,
     setCurrentlyEditing: any,
+    onStartEditing?: () => void,
+    onContentChange?: (text: string) => void,
     story: {
         id : number,
         created_at: string,
@@ -34,41 +30,20 @@ type TiptapProps = {
 
 const StoryEditor = (props: TiptapProps) => {
    
-    const { story, clearContent, setCurrentlyEditing, setClearContent, user, editable } = props
+    const { story, clearContent, setCurrentlyEditing, setClearContent, editable, onStartEditing, onContentChange } = props
 
-    const [provider, setProvider] = useState<any>(null)
     const [editor, setEditor] = useState<any>(null)
+    const [hasNotifiedEditStart, setHasNotifiedEditStart] = useState(false)
 
 
     
     useEffect(() => {
         if(story?.room_id?.length > 0){
-            const yDoc = new Y.Doc();
-            const provider = new YPartyKitProvider(
-                'https://stories-party.davidkamere.partykit.dev',
-                story.room_id.toString(),
-                yDoc,
-                {
-                    params: {
-                        user: user.data.session.user.email,
-                        room_id: story.room_id,
-                    }
-                }
-
-            )
-
-
             const editor = new Editor({ 
                 extensions: [
                     StarterKit.configure({
                         history: false,
-                        
                     }),
-                    // Register the document with Tiptap
-                    Collaboration.configure({
-                        document: provider.doc,
-                    }),
-                  
                 ],
                 editorProps: {
                     attributes: {
@@ -78,31 +53,29 @@ const StoryEditor = (props: TiptapProps) => {
                 autofocus: false,
             })
 
-
             setEditor(editor)
-            setProvider(provider)
-            
         }
 
         
     }, [])
 
     useEffect(() => {
-        editor?.setEditable(editable)
+        if (!editor) return
+        editor.setEditable(editable)
         if(editable){
             editor?.setOptions({
                 editorProps: {
                     attributes: {
-                    class: 'min-h-80 rounded-lg p-4 focus:outline-none bg-white border border-[#c3f680] bg-[#f0f0f0]',
+                    class: 'min-h-80 rounded-2xl p-6 focus:outline-none bg-white border-2 border-dashed border-[#b6ff4b] shadow-[0_8px_24px_rgba(0,0,0,0.08)]',
                     },
                 },
-                autofocus: true,
+                autofocus: false,
             })
         }else{
             editor?.setOptions({
                 editorProps: {
                     attributes: {
-                    class: 'min-h-80 rounded-lg p-4 focus:outline-none bg-white border border-[#FEE2E2] bg-[#f0f0f0]',
+                    class: 'min-h-80 rounded-2xl p-6 focus:outline-none bg-white/80 border-2 border-dashed border-[#d6cfc6]',
                     },
                 },
                 autofocus: false,
@@ -111,11 +84,30 @@ const StoryEditor = (props: TiptapProps) => {
         }
     }, [editable, editor])
 
+    useEffect(() => {
+        if (!editor) return
+        const handleUpdate = () => {
+            if (!editable || clearContent) return
+            if (!hasNotifiedEditStart) {
+                setHasNotifiedEditStart(true)
+                setCurrentlyEditing(true)
+                onStartEditing?.()
+            }
+            onContentChange?.(editor.getText())
+        }
+        editor.on('update', handleUpdate)
+        return () => {
+            editor.off('update', handleUpdate)
+        }
+    }, [editor, hasNotifiedEditStart, onStartEditing, setCurrentlyEditing, editable, clearContent, onContentChange])
+
 
     const handleClear = async () => {
         console.log('clearing: Story Editor')
         setCurrentlyEditing(false)
+        setHasNotifiedEditStart(false)
         await editor?.commands.clearContent(true)
+        onContentChange?.('')
         // socket.emit('clearChannel', {room_id: story.room_id})
         setClearContent(false)
     }
