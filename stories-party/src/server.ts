@@ -2,9 +2,11 @@ import type * as Party from "partykit/server";
 import { onConnect } from "y-partykit";
 
 export default class Server implements Party.Server {
+  private connUsers = new Map<string, string>();
+
   constructor(public room: Party.Room) {}
 
-  onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
+  async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
       // A websocket just connected!
       console.log(
         `Connected:
@@ -13,7 +15,8 @@ export default class Server implements Party.Server {
           url: ${new URL(ctx.request.url).pathname}`
       );
 
-      const my = this;
+      const activeUser = await this.room.storage.get<string>("activeUser");
+      conn.send(JSON.stringify({ type: "lock", activeUser: activeUser ?? null }));
 
       return onConnect(conn, this.room, {
         // experimental: persists the document to partykit's room storage
@@ -40,27 +43,47 @@ export default class Server implements Party.Server {
       });
   }
 
-  onMessage(message: string, sender: Party.Connection) {
-      // let's log the message
-      if (message === "clearChannel"){
-          console.log("clearing channel")
+  async onMessage(message: string, sender: Party.Connection) {
+      let data: any = null;
+      try {
+        data = JSON.parse(message);
+      } catch {
+        return;
       }
 
-      if (message === "saveEdits"){
-          console.log("saving edits")
+      if (data?.type === "start_editing" && data?.user) {
+        const activeUser = await this.room.storage.get<string>("activeUser");
+        // If someone else already has the lock, do not override.
+        if (activeUser && activeUser !== data.user) {
+          sender.send(JSON.stringify({ type: "lock", activeUser }));
+          return;
+        }
+
+        this.connUsers.set(sender.id, data.user);
+        await this.room.storage.put("activeUser", data.user);
+        this.room.broadcast(JSON.stringify({ type: "lock", activeUser: data.user }));
+        return;
       }
 
-      if (message === "deleteEdits"){
-          console.log("deleting edits")
+      if (data?.type === "stop_editing" && data?.user) {
+        const activeUser = await this.room.storage.get<string>("activeUser");
+        if (activeUser && activeUser === data.user) {
+          await this.room.storage.delete("activeUser");
+          this.room.broadcast(JSON.stringify({ type: "lock", activeUser: null }));
+        }
+        return;
       }
+  }
 
-      // console.log(`connection ${sender.id} sent message: ${message}`);
-      // as well as broadcast it to all the other connections in the room...
-      this.room.broadcast(
-        `${sender.id}: ${message}`,
-        // ...except for the connection it came from
-        [sender.id]
-      );
+  async onClose(conn: Party.Connection) {
+      const user = this.connUsers.get(conn.id);
+      this.connUsers.delete(conn.id);
+      if (!user) return;
+      const activeUser = await this.room.storage.get<string>("activeUser");
+      if (activeUser && activeUser === user) {
+        await this.room.storage.delete("activeUser");
+        this.room.broadcast(JSON.stringify({ type: "lock", activeUser: null }));
+      }
   }
 }
 
