@@ -23,5 +23,12 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "stories-party", "ws-server"]
+  "exclude": [
+    "node_modules",
+    "stories-party",
+    "stories-party/**",
+    "stories-party/src/server.ts",
+    "ws-server",
+    "ws-server/**"
+  ]
 }

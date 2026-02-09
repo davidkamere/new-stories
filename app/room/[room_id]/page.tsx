@@ -180,6 +180,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
     useEffect(() => {
         if (socketRef.current) return
         const socket = setUpSocket(room_id)
+        if (!socket) return
         socketRef.current = socket
 
         const handleMessage = (event: MessageEvent) => {
