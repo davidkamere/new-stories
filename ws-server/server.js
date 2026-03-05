@@ -10,12 +10,12 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ noServer: true });
 
-// roomId -> { activeUser: string|null, clients: Set<WebSocket> }
+// roomId -> { activeUser: string|null, activeConn: WebSocket|null, clients: Set<WebSocket> }
 const rooms = new Map();
 
 function getRoom(roomId) {
   if (!rooms.has(roomId)) {
-    rooms.set(roomId, { activeUser: null, clients: new Set() });
+    rooms.set(roomId, { activeUser: null, activeConn: null, clients: new Set() });
   }
   return rooms.get(roomId);
 }
@@ -60,18 +60,20 @@ wss.on("connection", (ws, roomId) => {
     }
 
     if (data?.type === "start_editing" && data?.user) {
-      if (room.activeUser && room.activeUser !== data.user) {
+      if (room.activeConn && room.activeConn !== ws) {
         ws.send(JSON.stringify({ type: "lock", activeUser: room.activeUser }));
         return;
       }
       room.activeUser = data.user;
+      room.activeConn = ws;
       broadcast(roomId, JSON.stringify({ type: "lock", activeUser: room.activeUser }));
       return;
     }
 
     if (data?.type === "stop_editing" && data?.user) {
-      if (room.activeUser && room.activeUser === data.user) {
+      if (room.activeConn === ws && room.activeUser === data.user) {
         room.activeUser = null;
+        room.activeConn = null;
         broadcast(roomId, JSON.stringify({ type: "lock", activeUser: null }));
       }
       return;
@@ -80,6 +82,11 @@ wss.on("connection", (ws, roomId) => {
 
   ws.on("close", () => {
     room.clients.delete(ws);
+    if (room.activeConn === ws) {
+      room.activeUser = null;
+      room.activeConn = null;
+      broadcast(roomId, JSON.stringify({ type: "lock", activeUser: null }));
+    }
   });
 });
 

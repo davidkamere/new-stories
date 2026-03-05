@@ -86,6 +86,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
     const room_id = params.room_id
     const socketRef = useRef<any>(null)
+    const lockStateRef = useRef<'open' | 'self' | 'other'>('open')
+    const penNameRef = useRef<string>('')
     const router = useRouter()
 
     const supabase = supabaseClient
@@ -176,6 +178,14 @@ export default function Page({ params }: { params: { room_id: string } }) {
         return { segments, uniqueAuthors, isContributor: contributor, isRoomFull: full }
     }
 
+    useEffect(() => {
+        lockStateRef.current = lockState
+    }, [lockState])
+
+    useEffect(() => {
+        penNameRef.current = penName
+    }, [penName])
+
 
     useEffect(() => {
         if (socketRef.current) return
@@ -213,11 +223,33 @@ export default function Page({ params }: { params: { room_id: string } }) {
         socket.addEventListener("message", handleMessage)
 
         return () => {
+            if (socket.readyState === 1 && lockStateRef.current === 'self' && penNameRef.current) {
+                socket.send(JSON.stringify({
+                    type: "stop_editing",
+                    user: penNameRef.current,
+                }))
+            }
             socket.removeEventListener("message", handleMessage)
             socket.close()
             socketRef.current = null
         }
     }, [room_id, penName])
+
+    useEffect(() => {
+        const onBeforeUnload = () => {
+            const socket = socketRef.current
+            if (!socket) return
+            if (socket.readyState === 1 && lockStateRef.current === 'self' && penNameRef.current) {
+                socket.send(JSON.stringify({
+                    type: "stop_editing",
+                    user: penNameRef.current,
+                }))
+            }
+        }
+
+        window.addEventListener('beforeunload', onBeforeUnload)
+        return () => window.removeEventListener('beforeunload', onBeforeUnload)
+    }, [])
 
     useEffect(() => {
         if (!room_id) return
