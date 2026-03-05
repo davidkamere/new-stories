@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import { Libre_Baskerville, Work_Sans } from 'next/font/google'
+import { Archivo, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 
 
-const serif = Libre_Baskerville({ subsets: ['latin'], variable: '--font-serif', weight: ['400', '700'] })
-const sans = Work_Sans({ subsets: ['latin'], variable: '--font-sans' })
+const sans = Archivo({ subsets: ['latin'], variable: '--font-sans', weight: ['400', '500', '600', '700'] })
+const mono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-mono', weight: ['400', '500'] })
 
 export const metadata: Metadata = {
   title: 'Stories',
@@ -20,7 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${serif.variable} ${sans.variable}`}>
+      <body className={`${sans.variable} ${mono.variable}`}>
         {children}
       </body>
     </html>

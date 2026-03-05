@@ -109,10 +109,10 @@ const Rooms = () => {
                 style={modalStyles}
                 contentLabel="Choose pen name"
             >
-                <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[420px]">
-                    <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74]">Pen Name</div>
+                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[420px]">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">Pen Name</div>
                     <div className="ink-title text-2xl mt-2">Pick your story alias</div>
-                    <p className="text-sm text-[#8f7f74] mt-2">
+                    <p className="text-sm text-[#5f5f5a] mt-2">
                         This name stays with this story only. Keep it short and memorable.
                     </p>
                     <input
@@ -120,20 +120,20 @@ const Rooms = () => {
                         placeholder="e.g. NightOwl"
                         value={penNameInput}
                         onChange={(e) => setPenNameInput(e.target.value)}
-                        className="w-full mt-4 p-3 rounded-xl border border-[#d7d0c7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#b6ff4b]"
+                        className="w-full mt-4 p-3 border border-[#c6c6c3] bg-[#f7f7f5] text-sm focus:outline-none focus:border-[#101010]"
                     />
                     <div className="flex flex-row justify-end space-x-3 mt-6">
                         <button
                             type="button"
                             onClick={closePenModal}
-                            className="px-4 py-2 rounded-full text-sm border border-[#d7d0c7]"
+                            className="px-4 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
                             onClick={handleConfirmPenName}
-                            className="stamp px-5 py-2 rounded-full text-sm border border-black bg-[#b6ff4b]"
+                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
                         >
                             Enter Story
                         </button>
@@ -159,7 +159,7 @@ const Rooms = () => {
                                 key={g}
                                 type="button"
                                 onClick={() => setGenreFilter(g)}
-                                className={`text-xs px-3 py-1 rounded-full border ${genreFilter === g ? 'border-black text-[#1b1a17]' : 'border-[#d7d0c7] text-[#8f7f74]'} bg-white/60`}
+                                className={`text-[11px] px-3 py-1 border uppercase tracking-[0.12em] ${genreFilter === g ? 'border-[#101010] text-[#101010] bg-[#efefec]' : 'border-[#c6c6c3] text-[#5f5f5a] bg-[#f7f7f5]'}`}
                             >
                                 {g}
                             </button>
@@ -191,7 +191,7 @@ const Rooms = () => {
                                                 openPenModal(room.room_id)
                                             }
                                         }}
-                                        className="paper-bg lift-card grid justify-items-start spacing-2 p-5 md:p-7 rounded-2xl text-base md:text-lg hover:cursor-pointer"
+                                        className="paper-bg lift-card grid justify-items-start spacing-2 p-5 md:p-7 rounded-md text-base md:text-lg hover:cursor-pointer"
                                         key={room.room_id}
                                     >        
                                         <Story 
@@ -209,7 +209,7 @@ const Rooms = () => {
                             )
                         }
                     </div>
-                    <div className='mt-20 mb-20 text-[#261201] flex justify-center'>
+                    <div className='mt-16 mb-20 text-[#101010] flex justify-center'>
                         <CreateRoom getRoomsFromDb={getRoomsFromDb} />
                     </div>
                     

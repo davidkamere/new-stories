@@ -22,23 +22,21 @@ const OpeningLines = () => {
   }, [])
 
   return (
-    <div className="relative overflow-hidden rounded-3xl px-5 md:px-6 py-4 md:py-5 border border-[#d7d0c7] bg-transparent">
-      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-[#b6ff4b]/30 blur-2xl"></div>
-      <div className="absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-[#ff8a5c]/20 blur-2xl"></div>
-      <div className="text-[10px] md:text-[11px] uppercase tracking-[0.35em] text-[#8f7f74]">Opening line</div>
+    <div className="relative overflow-hidden rounded-md px-5 md:px-6 py-5 md:py-6 border border-[#c6c6c3] bg-[#f5f5f3]">
+      <div className="text-[10px] md:text-[11px] uppercase tracking-[0.28em] text-[#5f5f5a] font-medium">Opening line</div>
       <AnimatePresence mode="wait">
         <motion.p
           key={index}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.45 }}
-          className="mt-3 text-base md:text-xl ink-title"
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.35 }}
+          className="mt-3 text-lg md:text-2xl ink-title text-[#101010]"
         >
           {lines[index]}
         </motion.p>
       </AnimatePresence>
-      <div className="mt-3 h-[2px] w-16 bg-[#1b1a17]"></div>
+      <div className="mt-5 h-[1px] w-full bg-[#c6c6c3]"></div>
     </div>
   )
 }

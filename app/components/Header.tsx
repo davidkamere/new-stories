@@ -12,18 +12,19 @@ const Header = () => {
     
 
     return (
-        <div className="">
-            
-            <div className="flex flex-row justify-between items-center px-4 md:px-10 py-6 md:py-8 text-black">
+        <div className="border-b border-[#c6c6c3] bg-[#f2f2f0]/90 backdrop-blur-[2px]">
+            <div className="flex flex-row justify-between items-center px-4 md:px-10 py-5 md:py-6 text-[#101010] max-w-7xl mx-auto">
 
-                <Link href={'/'} className='hover:cursor-pointer'>
+                <Link href={'/'} className='hover:cursor-pointer transition-opacity hover:opacity-70'>
                     {
-                        pathname === '/' ? <HomeIcon className='h-7 w-7 text-black hover:scale-125 hover:transition hover:transform hover:ease-in'/> : <HomeIconOutline className='h-7 w-7 text-black hover:scale-125 hover:transition hover:transform hover:ease-in'/>
+                        pathname === '/' ? <HomeIcon className='h-6 w-6'/> : <HomeIconOutline className='h-6 w-6'/>
                     }
                 </Link>
 
-                <div className='flex flex-row justify-end items-center space-x-4 md:space-x-8 text-sm md:text-base md:pr-3'>
-                    <Link href={'/about'} className={`${pathname === '/about' ? 'text-[#dcdddf]': 'text-black'}`}>About</Link>
+                <div className='flex flex-row justify-end items-center space-x-4 md:space-x-8 text-[11px] uppercase tracking-[0.18em] md:pr-1'>
+                    <Link href={'/about'} className={`${pathname === '/about' ? 'text-[#101010]': 'text-[#5f5f5a]'} transition-colors`}>
+                        About
+                    </Link>
                 </div>
             </div>
         </div>

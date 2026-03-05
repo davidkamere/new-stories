@@ -376,8 +376,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
             
             <Header/>
             <Modal isOpen={isOpen} onRequestClose={closeModal} style={customStyles} >
-                <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-xs uppercase tracking-[0.3em] text-[#6acb25]">Confirm</div>
+                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#d16a1c]">Confirm</div>
                     <div className="ink-title text-2xl mt-2 text-[#1b1a17]">Add this to the story?</div>
                     <p className="text-sm text-[#8f7f74] mt-2">
                         Once submitted, this piece can’t be edited — but others can build on it.
@@ -392,14 +392,14 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     <div className="flex flex-col md:flex-row md:justify-between gap-3 mt-6">
                         <button
                             type="button"
-                            className="px-5 py-2 rounded-full text-sm border border-[#d7d0c7] bg-white/70"
+                            className="px-5 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
                             onClick={deleteEdits}
                         >
                             Clear Draft
                         </button>
                         <button
                             type="button"
-                            className="stamp px-5 py-2 rounded-full text-sm border border-black bg-[#b6ff4b]"
+                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
                             onClick={saveEdits}
                         >
                             Add to Story
@@ -408,8 +408,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 </div>
             </Modal>
             <Modal isOpen={isForkOpen} onRequestClose={closeForkModal} style={customStyles}>
-                <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74]">Fork Story</div>
+                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">Fork Story</div>
                     <div className="ink-title text-2xl mt-2">Name your fork</div>
                     <p className="text-sm text-[#8f7f74] mt-2">
                         This creates a new story starting from the current one.
@@ -419,19 +419,19 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         placeholder={`${story.story_title} (Fork)`}
                         value={forkName}
                         onChange={(e) => setForkName(e.target.value)}
-                        className="w-full mt-4 p-3 rounded-xl border border-[#d7d0c7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#b6ff4b]"
+                        className="w-full mt-4 p-3 border border-[#c6c6c3] bg-[#f7f7f5] text-sm focus:outline-none focus:border-[#101010]"
                     />
                     <div className="flex justify-end space-x-3 mt-6">
                         <button
                             type="button"
                             onClick={closeForkModal}
-                            className="px-4 py-2 rounded-full text-sm border border-[#d7d0c7]"
+                            className="px-4 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
-                            className="stamp px-5 py-2 rounded-full text-sm border border-black bg-[#b6ff4b]"
+                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
                             onClick={async () => {
                                 setForking(true)
                                 try {
@@ -460,8 +460,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 </div>
             </Modal>
             <Modal isOpen={isPenOpen} onRequestClose={closePenModal} style={customStyles}>
-                <div className="paper-bg rounded-3xl p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74]">Pen Name</div>
+                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">Pen Name</div>
                     <div className="ink-title text-2xl mt-2">Update your pen name</div>
                     <p className="text-sm text-[#8f7f74] mt-2">
                         This only changes your name for this story.
@@ -471,19 +471,19 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         placeholder="Pen name"
                         value={penDraft}
                         onChange={(e) => setPenDraft(e.target.value)}
-                        className="w-full mt-4 p-3 rounded-xl border border-[#d7d0c7] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#b6ff4b]"
+                        className="w-full mt-4 p-3 border border-[#c6c6c3] bg-[#f7f7f5] text-sm focus:outline-none focus:border-[#101010]"
                     />
                     <div className="flex justify-end space-x-3 mt-6">
                         <button
                             type="button"
                             onClick={closePenModal}
-                            className="px-4 py-2 rounded-full text-sm border border-[#d7d0c7]"
+                            className="px-4 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
-                            className="stamp px-5 py-2 rounded-full text-sm border border-black bg-[#b6ff4b]"
+                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
                             onClick={() => {
                                 const name = penDraft.trim()
                                 if (!name) return
@@ -501,8 +501,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
             <div className="min-h-screen flex flex-col px-6 py-2 mb-20">
                 <div className="mt-6 px-2 flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center space-x-2 md:space-x-3 flex-wrap gap-2">
-                        <Link href="/" className="text-xs px-2 py-1 rounded-full">←</Link>
-                        <span className="text-[10px] md:text-xs px-3 py-1 rounded-full" style={{ ["--genre-hue" as any]: (story?.genre || 'story').length * 9, color: 'var(--muted)' }}>
+                        <Link href="/" className="text-xs px-2 py-1 border border-[#c6c6c3] bg-[#f7f7f5]">←</Link>
+                        <span className="text-[10px] md:text-xs px-3 py-1 border border-[#c6c6c3] bg-[#f7f7f5] uppercase tracking-[0.12em]" style={{ ["--genre-hue" as any]: (story?.genre || 'story').length * 9, color: 'var(--muted)' }}>
                             #{story.genre}
                         </span>
                         {penName && (
@@ -512,7 +512,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     setPenDraft(penName)
                                     setIsPenOpen(true)
                                 }}
-                                className="text-[10px] md:text-xs text-[#8f7f74] underline decoration-dotted underline-offset-4 hover:text-[#1b1a17] hover:decoration-[#b6ff4b] hover:drop-shadow-[0_0_6px_rgba(182,255,75,0.6)] transition"
+                                className="text-[10px] md:text-xs text-[#5f5f5a] underline decoration-dotted underline-offset-4 hover:text-[#101010] transition"
                             >
                                 Pen name: {penName}
                             </button>
@@ -522,7 +522,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         <button
                             type="button"
                             onClick={() => setReadingMode((prev) => !prev)}
-                            className={`text-[10px] md:text-xs px-3 md:px-4 py-2 rounded-full ${readingMode ? 'bg-[#1b1a17] text-white neon-ring' : 'border border-[#d7d0c7] bg-white/60'}`}
+                            className={`text-[10px] md:text-xs px-3 md:px-4 py-2 border ${readingMode ? 'bg-[#101010] text-white' : 'border-[#c6c6c3] bg-[#f7f7f5] text-[#101010]'}`}
                         >
                             {readingMode ? 'Exit Reading Mode' : 'Reading Mode'}
                         </button>
@@ -534,7 +534,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                 setForkName('')
                                 setIsForkOpen(true)
                             }}
-                            className="text-[10px] md:text-xs px-3 py-2 rounded-full border border-[#b6ff4b] text-[#1b1a17] bg-[#eaffc5]"
+                            className="text-[10px] md:text-xs px-3 py-2 border border-[#101010] text-[#101010] bg-[#efefec]"
                         >
                             {forking ? 'Forking…' : 'Fork Story'}
                         </button>
@@ -556,7 +556,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     <div className="px-2 mt-3">
                         {lockState === 'self' && (
                             <div className="inline-flex items-center space-x-2">
-                                <span className="h-2 w-2 rounded-full bg-[#6acb25] type-dot"></span>
+                                <span className="h-2 w-2 rounded-full bg-[#2f7a43] type-dot"></span>
                                 <span className="text-sm text-[#8f7f74]">Your turn</span>
                             </div>
                         )}
@@ -566,7 +566,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                             </div>
                         )}
                         {lockState === 'other' && (
-                            <div className="text-sm text-[#ff8a5c] bg-[#fff2eb] border border-[#ffd9c9] rounded-full px-4 py-1 inline-block">
+                            <div className="text-sm text-[#d16a1c] bg-[#f3ede7] border border-[#d3c8bc] px-4 py-1 inline-block">
                                 Someone else is writing right now.
                             </div>
                         )}
@@ -670,7 +670,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 <div className="mt-8 mb-4 px-2 relative">
                     {lockState === 'self' && content.trim().length > 0 && (
                         <div className="mb-3 flex items-center space-x-3">
-                            <div className="text-sm text-[#ff8a5c] bg-[#fff2eb] border border-[#ffd9c9] rounded-full px-4 py-1 inline-block">
+                            <div className="text-sm text-[#d16a1c] bg-[#f3ede7] border border-[#d3c8bc] px-4 py-1 inline-block">
                                 You are the only one writing right now.
                             </div>
                             <label className="flex items-center space-x-2 cursor-pointer text-xs text-[#8f7f74]">
@@ -678,7 +678,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     type="checkbox"
                                     checked={highlightOwn}
                                     onChange={(e) => setHighlightOwn(e.target.checked)}
-                                    className="accent-[#b6ff4b]"
+                                    className="accent-[#101010]"
                                 />
                                 <span>Highlight my contributions</span>
                             </label>
@@ -738,9 +738,9 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     <div className="flex flex-col items-center space-y-3">
                                         <span className="text-base">Waiting on the writer…</span>
                                         <span className="flex items-center space-x-2">
-                                            <span className="h-2 w-2 rounded-full bg-[#b6ff4b] animate-bounce [animation-delay:-0.2s]"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[#b6ff4b] animate-bounce"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[#b6ff4b] animate-bounce [animation-delay:0.2s]"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce [animation-delay:-0.2s]"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce [animation-delay:0.2s]"></span>
                                         </span>
                                     </div>
                                 </div>
@@ -771,24 +771,24 @@ export default function Page({ params }: { params: { room_id: string } }) {
                             <button
                                 type="button"
                                 onClick={() => setStartMode('continue')}
-                                className={`px-4 py-2 rounded-full border flex items-center space-x-2 ${startMode === 'continue' ? 'border-black text-[#1b1a17] bg-white/70 neon-ring' : 'border-[#c3f680] text-[#8f7f74] bg-white/40'} `}
+                                className={`px-4 py-2 border flex items-center space-x-2 ${startMode === 'continue' ? 'border-[#101010] text-[#101010] bg-[#efefec]' : 'border-[#c6c6c3] text-[#5f5f5a] bg-[#f7f7f5]'} `}
                             >
-                                <span className="text-xs px-2 py-0.5 rounded-full border border-[#d7d0c7]">↩︎</span>
+                                <span className="text-xs px-2 py-0.5 border border-[#c6c6c3]">↩︎</span>
                                 <span>Continue</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setStartMode('paragraph')}
-                                className={`px-4 py-2 rounded-full border flex items-center space-x-2 ${startMode === 'paragraph' ? 'border-black text-[#1b1a17] bg-white/70 neon-ring' : 'border-[#c3f680] text-[#8f7f74] bg-white/40'} `}
+                                className={`px-4 py-2 border flex items-center space-x-2 ${startMode === 'paragraph' ? 'border-[#101010] text-[#101010] bg-[#efefec]' : 'border-[#c6c6c3] text-[#5f5f5a] bg-[#f7f7f5]'} `}
                             >
-                                <span className="text-xs px-2 py-0.5 rounded-full border border-[#d7d0c7]">¶</span>
+                                <span className="text-xs px-2 py-0.5 border border-[#c6c6c3]">¶</span>
                                 <span>New paragraph</span>
                             </button>
                             {lockCountdown > 0 && (
                                 <div
-                                    className="h-10 w-10 rounded-full neon-ring flex items-center justify-center text-[10px] text-[#1b1a17]"
+                                    className="h-10 w-10 border border-[#101010] flex items-center justify-center text-[10px] text-[#101010]"
                                     style={{
-                                        background: `conic-gradient(var(--neon) ${Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360)}deg, rgba(0,0,0,0.08) 0deg)`
+                                        background: `conic-gradient(#bdbdb8 ${Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360)}deg, rgba(0,0,0,0.05) 0deg)`
                                     }}
                                 >
                                     {lockCountdown}
@@ -807,7 +807,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         <>
                             <div className="w-full flex justify-center px-2 font-bold mt-6">
                                 <motion.div whileHover={{ x: 1 , y: 1}}>
-                                    <button onClick={() => setIsOpen(true)} className="stamp px-8 py-4 bg-[#b6ff4b] border-black flex flex-row border rounded-2xl shadow-[2px_6px_1px_0_black] hover:shadow-none transform transition duration-300 ease-in-out">
+                                    <button onClick={() => setIsOpen(true)} className="stamp px-8 py-4 bg-[#efefec] border-[#101010] flex flex-row border rounded-md hover:bg-[#e4e4e0] transition duration-200 ease-in-out">
                                         <p className="pr-2 uppercase tracking-[0.2em] text-sm"> Add to Story </p>
                                     </button>
                                 </motion.div>       

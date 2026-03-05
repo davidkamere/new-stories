@@ -5,7 +5,6 @@ import { useState } from "react";
 import { createNewRoom } from "@/utils/db/actions";
 import Modal from 'react-modal';
 import { motion } from "framer-motion"
-import { PlusIcon } from "@heroicons/react/20/solid";
 
 
 const customStyles = {
@@ -81,14 +80,14 @@ const CreateRoom = (props: CreateRoomProps) => {
                 style={customStyles}
                 onRequestClose={closeModal}
             >   
-                <form onSubmit={handleSubmit} className="paper-bg rounded-3xl p-6 md:p-10 w-[92vw] max-w-[520px] max-h-[85vh] overflow-y-auto">
+                <form onSubmit={handleSubmit} className="paper-bg rounded-md p-6 md:p-10 w-[92vw] max-w-[560px] max-h-[85vh] overflow-y-auto">
                 <div className="flex flex-col space-y-4">
-                    <div className="text-xs uppercase tracking-[0.3em] text-[#8f7f74]">New Story</div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">New Story</div>
                     <div className="ink-title text-2xl">Start a story</div>
-                    <div className="text-sm text-[#8f7f74]">
+                    <div className="text-sm text-[#5f5f5a]">
                         Pick a pen name, a title, and a genre. Your first lines set the tone.
                     </div>
-                    <div className="text-sm text-[#8f7f74]">Your pen name</div>
+                    <div className="text-sm text-[#5f5f5a]">Your pen name</div>
                     <input
                         type="text"
                         id="penName"
@@ -96,9 +95,9 @@ const CreateRoom = (props: CreateRoomProps) => {
                         value={penName}
                         onChange={(e) => setPenName(e.target.value)}
                         required
-                        className="border bg-white border-[#d7d0c7] p-3 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-[#b6ff4b] placeholder:font-light placeholder:text-base"
+                        className="border bg-[#f7f7f5] border-[#c6c6c3] p-3 w-full focus:outline-none focus:border-[#101010] placeholder:font-light placeholder:text-base"
                     />
-                    <div className="text-sm text-[#8f7f74]">Title</div>
+                    <div className="text-sm text-[#5f5f5a]">Title</div>
                     
                     <input
                         type="text"
@@ -107,10 +106,10 @@ const CreateRoom = (props: CreateRoomProps) => {
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         required
-                        className="border bg-white border-[#d7d0c7] p-3 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-[#b6ff4b] placeholder:font-light placeholder:text-base"
+                        className="border bg-[#f7f7f5] border-[#c6c6c3] p-3 w-full focus:outline-none focus:border-[#101010] placeholder:font-light placeholder:text-base"
                     />
 
-                    <div className="text-sm text-[#8f7f74]">Genre</div>
+                    <div className="text-sm text-[#5f5f5a]">Genre</div>
                     <input
                         type="text"
                         id="genre"
@@ -118,35 +117,35 @@ const CreateRoom = (props: CreateRoomProps) => {
                         value={genre}
                         required
                         onChange={(e) => setGenre(e.target.value)}
-                        className="border bg-white border-[#d7d0c7] p-3 rounded-xl w-full focus:outline-none focus:ring-2 focus:ring-[#b6ff4b] placeholder:font-light placeholder:text-base"
+                        className="border bg-[#f7f7f5] border-[#c6c6c3] p-3 w-full focus:outline-none focus:border-[#101010] placeholder:font-light placeholder:text-base"
                     />
 
-                    <div className="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0">
-                        <div className="pr-4">Any adult themes?</div>
+                    <div className="flex flex-col md:flex-row md:space-x-4 space-y-2 md:space-y-0 text-sm">
+                        <div className="pr-4 text-[#5f5f5a]">Any adult themes?</div>
 
-                        <label htmlFor="adultThemesYes">Yes</label>
+                        <label htmlFor="adultThemesYes" className="text-[#101010]">Yes</label>
                         <input
                             type="checkbox"
                             id="adultThemesYes"
                             name="adultThemes"
                             checked={isAdultThemeSelected}
                             onChange={handleCheckboxChange}
-                            className="accent-[#c3f680]"
+                            className="accent-[#101010]"
                         />
 
-                        <label htmlFor="adultThemesNo">No</label>
+                        <label htmlFor="adultThemesNo" className="text-[#101010]">No</label>
                         <input
                             type="checkbox"
                             id="adultThemesNo"
                             name="adultThemes"
                             checked={!isAdultThemeSelected}
                             onChange={(event) => setIsAdultThemeSelected(!event.target.checked)}
-                            className="accent-[#c3f680]"
+                            className="accent-[#101010]"
                         />
                     </div>
                     
                     
-                    <label htmlFor="content" className="text-sm text-[#8f7f74]">
+                    <label htmlFor="content" className="text-sm text-[#5f5f5a]">
                         Write something to start the story off below...
                     </label>
                     <textarea
@@ -156,19 +155,19 @@ const CreateRoom = (props: CreateRoomProps) => {
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
                         required
-                        className="border w-full bg-white border-[#d7d0c7] p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#b6ff4b] placeholder:font-light placeholder:text-base"
+                        className="border w-full bg-[#f7f7f5] border-[#c6c6c3] p-3 focus:outline-none focus:border-[#101010] placeholder:font-light placeholder:text-base"
                     />
                     <div className="flex flex-col md:flex-row md:justify-between gap-3 pt-2">
                         <button
                             type="button"
                             onClick={closeModal}
-                            className="px-5 py-2 rounded-full text-sm border border-[#d7d0c7] bg-white/70"
+                            className="px-5 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="px-5 py-2 rounded-full text-sm border border-[#b6ff4b] bg-[#f1ffd9] text-[#1b1a17] hover:bg-[#e4ffb8] transition"
+                            className="px-5 py-2 text-sm border border-[#101010] bg-[#efefec] text-[#101010] hover:bg-[#e4e4e0] transition"
                         >
                             Start Story
                         </button>
@@ -183,7 +182,7 @@ const CreateRoom = (props: CreateRoomProps) => {
                 whileHover={{ x: 1 , y: 1}}
             >
                 <button
-                    className="border-black bg-[#fcfcfc]  border p-4  font-semibold rounded-lg py-3 px-7  text-black shadow-[1px_5px_1px_0_black] hover:shadow-none transform transition duration-300 ease-in-out"
+                    className="border border-[#101010] bg-[#efefec] font-semibold rounded-md py-3 px-7 text-[#101010] hover:bg-[#e4e4e0] transition duration-200 ease-in-out"
                     onClick={handleOpenModal}>
                         Create New Story
                 </button>
