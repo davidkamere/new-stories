@@ -137,10 +137,10 @@ Currently: **No RLS** (auth disabled). If enabling auth:
 
 ## Realtime Changes
 
-### PartyKit (Lock)
+### Cloudflare Workers (Lock)
 - Edit `stories-party/src/server.ts`
-- Test locally with `partykit dev`
-- Deploy with `partykit deploy`
+- Test locally with `npx wrangler dev` (in stories-party/)
+- Deploy with `npx wrangler deploy`
 - Update `NEXT_PUBLIC_PARTYKIT_HOST` in Vercel
 
 ### Supabase Realtime (Status)
@@ -200,7 +200,7 @@ Update when changing:
 
 1. Merge to `main`
 2. Vercel auto-deploys Next.js
-3. PartyKit deploy separately if DO changed
+3. Cloudflare Workers deploy separately if DO changed (`cd stories-party && npx wrangler deploy`)
 4. Tag release: `git tag v0.x.x && git push --tags`
 
 ---

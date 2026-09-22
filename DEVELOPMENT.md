@@ -6,10 +6,10 @@ Local development workflow for the co-writing platform.
 
 ## Prerequisites
 
-- Node.js 20+
-- npm or yarn
+- Node.js 20+ (pinned via `.nvmrc`)
+- npm
 - Supabase account (for database)
-- PartyKit account (for realtime, or run locally)
+- Cloudflare account (for Workers deployment, optional for local dev)
 
 ---
 
@@ -19,15 +19,16 @@ Local development workflow for the co-writing platform.
 # 1. Clone and install
 git clone <repo>
 cd new-stories
+nvm use           # switches to Node 20
 npm install
 
 # 2. Configure environment
-cp .env.example .env  # or create .env manually
+cp .env.example .env
 # Edit .env with your Supabase credentials
 
-# 3. Start PartyKit dev server (terminal 1)
+# 3. Start Cloudflare Worker dev server (terminal 1)
 cd stories-party
-npx partykit dev
+npx wrangler dev
 
 # 4. Start Next.js dev server (terminal 2)
 cd ..
@@ -36,13 +37,14 @@ npm run dev
 
 **URLs:**
 - App: http://localhost:3000
-- PartyKit WebSocket: ws://127.0.0.1:1999
+- Worker WebSocket: ws://localhost:8787
+- Worker Health: http://localhost:8787/health
 
 ---
 
 ## Environment Variables
 
-Create `.env` in project root:
+Create `.env` in project root from `.env.example`:
 
 ```bash
 # Supabase (required)
@@ -50,9 +52,9 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_KEY=your-anon-key
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key
 
-# PartyKit (required)
-NEXT_PUBLIC_PARTYKIT_HOST=ws://127.0.0.1:1999  # local dev
-# NEXT_PUBLIC_PARTYKIT_HOST=wss://your-party.partykit.dev  # production
+# Cloudflare Workers (required)
+NEXT_PUBLIC_PARTYKIT_HOST=ws://localhost:8787  # local dev
+# NEXT_PUBLIC_PARTYKIT_HOST=wss://your-worker.your-subdomain.workers.dev  # production
 ```
 
 ---
@@ -67,10 +69,11 @@ new-stories/
 │   ├── components/               # React components
 │   ├── globals.css               # Design system
 │   └── layout.tsx
-├── stories-party/                # PartyKit Durable Object
+├── stories-party/                # Cloudflare Worker (Durable Object)
 │   ├── src/server.ts             # Lock logic (THE core)
-│   ├── src/client.ts             # Demo client (unused)
-│   └── partykit.json             # PartyKit config
+│   ├── wrangler.toml             # Workers config (DO bindings, migrations)
+│   ├── package.json              # Worker deps
+│   └── tsconfig.json             # TypeScript config
 ├── utils/
 │   ├── socket.js                 # WebSocket connection helper
 │   ├── db/
@@ -90,7 +93,8 @@ new-stories/
 | `app/room/[room_id]/page.tsx` | Room page — lock state machine, editor, save |
 | `app/components/StoryEditor.tsx` | TipTap editor (no collab) |
 | `utils/db/actions.ts` | Supabase queries |
-| `utils/socket.js` | PartyKit WebSocket connection |
+| `utils/socket.js` | WebSocket connection to Worker |
+| `stories-party/wrangler.toml` | Worker config (DO bindings, migrations) |
 
 ---
 
@@ -107,8 +111,8 @@ new-stories/
 ## Linting & Type Checking
 
 ```bash
-npm run lint        # ESLint
-npx tsc --noEmit    # TypeScript check
+npm run lint              # ESLint (Next.js)
+cd stories-party && npm run typecheck  # TypeScript check for Worker
 ```
 
 ---
@@ -140,37 +144,50 @@ alter publication supabase_realtime add table "Status";
 
 ---
 
-## PartyKit Development
+## Cloudflare Worker Development
 
 ### Local Dev Server
 ```bash
 cd stories-party
-npx partykit dev
+npx wrangler dev
 ```
 - Watches `src/server.ts` for changes
-- Serves on `ws://127.0.0.1:1999`
+- Serves on `ws://localhost:8787`
+- Durable Object: `ROOM` binding → `PartyServer` class
 - Logs connections/messages to console
+
+### Type Checking
+```bash
+cd stories-party
+npm run typecheck
+```
 
 ### Deploy to Cloudflare
 ```bash
 cd stories-party
-npx partykit deploy
+npx wrangler deploy
 ```
-- Publishes DO to Cloudflare edge
-- Returns `wss://` URL for `NEXT_PUBLIC_PARTYKIT_HOST`
+- Publishes DO to Cloudflare edge (uses SQLite-backed DO for free tier)
+- Returns `https://stories-party.your-subdomain.workers.dev`
+- Update `NEXT_PUBLIC_PARTYKIT_HOST` in Vercel/env
 
-### PartyKit Config (`partykit.json`)
-```json
-{
-  "name": "stories-party",
-  "main": "src/server.ts",
-  "compatibilityDate": "2024-08-25",
-  "serve": {
-    "path": "public",
-    "build": "src/client.ts"
-  }
-}
+### Worker Config (`wrangler.toml`)
+```toml
+name = "stories-party"
+main = "src/server.ts"
+compatibility_date = "2024-08-25"
+compatibility_flags = ["nodejs_compat"]
+
+[durable_objects]
+bindings = [
+  { name = "ROOM", class_name = "PartyServer" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PartyServer"]
 ```
+**Key:** `new_sqlite_classes` enables SQLite-backed DOs (required for free plan).
 
 ---
 
@@ -178,9 +195,9 @@ npx partykit deploy
 
 ### Add a New Lock Type
 1. **Server** (`stories-party/src/server.ts`):
-   - Add message type in `onMessage`
+   - Add message type in `webSocketMessage`
    - Use separate storage key (e.g., `titleLock`)
-   - Broadcast to room
+   - Broadcast via `this.broadcast()`
 
 2. **Client** (`app/room/[room_id]/page.tsx`):
    - Add lock state enum
@@ -205,9 +222,9 @@ npx partykit deploy
 
 ## Debugging
 
-### PartyKit Logs
+### Worker Logs
 ```bash
-# In PartyKit dev terminal
+# In wrangler dev terminal
 # Shows: connections, messages, storage reads/writes
 ```
 
@@ -220,18 +237,28 @@ npx partykit deploy
 - **Table Editor** — inspect Rooms, Status
 - **Logs → Realtime** — presence events
 
+### Cloudflare Dashboard
+- **Workers → stories-party → Logs** — production logs
+- **Workers → Durable Objects** — inspect DO storage
+
 ---
 
 ## Useful Commands
 
 ```bash
-# Clean install
+# Clean install (root)
 rm -rf node_modules package-lock.json && npm install
 
-# Type-check only
+# Clean install (worker)
+cd stories-party && rm -rf node_modules package-lock.json && npm install
+
+# Type-check only (root)
 npx tsc --noEmit
 
-# Build for production
+# Type-check only (worker)
+cd stories-party && npm run typecheck
+
+# Build for production (Next.js)
 npm run build
 
 # Preview production build
@@ -245,10 +272,13 @@ npm run start
 | Issue | Fix |
 |-------|-----|
 | "Missing SUPABASE_URL" | Check `.env` exists and vars are set |
-| WebSocket connection fails | Ensure PartyKit dev server running on 1999 |
-| Lock not releasing | Check `onClose` in server.ts, browser `beforeunload` |
+| WebSocket connection fails | Ensure `wrangler dev` running on port 8787 |
+| Lock not releasing | Check `webSocketClose` in server.ts, browser `beforeunload` |
 | Story not saving | Check Supabase RLS policies, network tab for errors |
-| TypeScript errors | Run `npx tsc --noEmit`, check `@/*` paths in tsconfig |
+| TypeScript errors (root) | Run `npx tsc --noEmit`, check `@/*` paths in tsconfig |
+| TypeScript errors (worker) | Run `npm run typecheck` in stories-party/ |
+| "Durable Object namespace not found" | Run `wrangler deploy` to create DO migration |
+| Node version errors | Run `nvm use` in project root (needs Node 20) |
 
 ---
 
@@ -257,7 +287,7 @@ npm run start
 Recommended extensions:
 - TypeScript Hero
 - Tailwind CSS IntelliSense
-- PartyKit (if available)
+- Cloudflare Workers (for wrangler integration)
 
 Settings:
 ```json
@@ -278,4 +308,5 @@ Settings:
 - [ ] Test disconnect (close tab, reopen)
 - [ ] Test fork flow
 - [ ] Verify reading mode toggle
-- [ ] Run `npm run lint` and `npx tsc --noEmit`
+- [ ] Run `npm run lint` and `npx tsc --noEmit` (root)
+- [ ] Run `npm run typecheck` in stories-party/

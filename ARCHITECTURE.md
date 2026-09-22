@@ -20,12 +20,15 @@ The **Durable Object's `room.storage`** is the single source of truth for `activ
 - ✅ Clients are dumb reflectors of server truth
 - ✅ Reconnection syncs automatically (DO sends current `activeUser` on `onConnect`)
 - ⚠️ Adds latency (round-trip to edge) for lock acquisition
-- ⚠️ Requires PartyKit/Cloudflare infrastructure
+- ⚠️ Requires Cloudflare Workers infrastructure
 
 ### Alternatives Considered
 - **Client-side mutex with Supabase row locks** — higher latency, more complex
 - **Centralized lock service** — additional infrastructure, same problems
 - **CRDT/Yjs for concurrent editing** — rejects the "single writer" product requirement
+
+### Implementation Note
+Originally used PartyKit (which runs on Cloudflare Durable Objects). Now deployed directly to Cloudflare Workers with native Durable Objects (`new_sqlite_classes` for free tier). The lock logic is identical.
 
 ---
 
@@ -153,7 +156,7 @@ Two realtime channels needed: lock state (high consistency) and presence/status 
 - ⚠️ Two infrastructure pieces to operate
 
 ### Alternatives Considered
-- **All in PartyKit** — DO storage not ideal for ephemeral presence; would need TTL cleanup
+- **All in Cloudflare Workers** — DO storage not ideal for ephemeral presence; would need TTL cleanup
 - **All in Supabase** — row locks for editing are slower, less deterministic
 
 ---
@@ -201,12 +204,12 @@ Users want to branch a story without affecting the original.
 
 | ADR | Decision | Key Trade-off |
 |-----|----------|---------------|
-| 001 | DO storage for lock | Latency for consistency |
+| 001 | DO storage for lock (Cloudflare Workers) | Latency for consistency |
 | 002 | No TipTap collab | No concurrent edit |
 | 003 | Annotated plain text | Parse cost, no SQL queries |
 | 004 | Client timeout + server disconnect | Trusts client |
 | 005 | localStorage pen names | Not cross-device |
-| 006 | Two realtime systems | Two WS connections |
+| 006 | Two realtime systems (Workers + Supabase) | Two WS connections |
 | 007 | Client-only reading mode | Lock can change unseen |
 | 008 | Fork = new room + marker | No merge support |
 
