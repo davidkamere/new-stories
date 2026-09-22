@@ -1,34 +1,33 @@
 "use client"
 
 import Link from 'next/link';
-
 import { usePathname } from 'next/navigation';
 
-import { HomeIcon } from '@heroicons/react/20/solid';
-import { HomeIcon as HomeIconOutline } from '@heroicons/react/24/outline';
 const Header = () => {
-    const pathname = usePathname()
+  const pathname = usePathname();
 
-    
+  return (
+    <header className="header-minimal">
+      <div className="content-column flex flex-row justify-between items-center">
+        <Link href="/" className="hover:opacity-70 transition-opacity" aria-label="Stories Home">
+          <span className="ink-title text-xl">Stories</span>
+        </Link>
 
-    return (
-        <div className="border-b border-[#c6c6c3] bg-[#f2f2f0]/90 backdrop-blur-[2px]">
-            <div className="flex flex-row justify-between items-center px-4 md:px-10 py-5 md:py-6 text-[#101010] max-w-7xl mx-auto">
-
-                <Link href={'/'} className='hover:cursor-pointer transition-opacity hover:opacity-70'>
-                    {
-                        pathname === '/' ? <HomeIcon className='h-6 w-6'/> : <HomeIconOutline className='h-6 w-6'/>
-                    }
-                </Link>
-
-                <div className='flex flex-row justify-end items-center space-x-4 md:space-x-8 text-[11px] uppercase tracking-[0.18em] md:pr-1'>
-                    <Link href={'/about'} className={`${pathname === '/about' ? 'text-[#101010]': 'text-[#5f5f5a]'} transition-colors`}>
-                        About
-                    </Link>
-                </div>
-            </div>
-        </div>
-    )
-}
+        <nav className="flex flex-row items-center space-x-4 md:space-x-6">
+          <Link
+            href="/about"
+            className={`text-small uppercase tracking-[0.1em] transition-colors ${
+              pathname === '/about'
+                ? 'text-[var(--text)] font-medium'
+                : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+            }`}
+          >
+            About
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+};
 
 export default Header;

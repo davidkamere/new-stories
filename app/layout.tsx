@@ -1,17 +1,26 @@
 import type { Metadata } from 'next'
-import { Archivo, IBM_Plex_Mono } from 'next/font/google'
+import { Atkinson_Hyperlegible, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 
+const atkinson = Atkinson_Hyperlegible({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
-const sans = Archivo({ subsets: ['latin'], variable: '--font-sans', weight: ['400', '500', '600', '700'] })
-const mono = IBM_Plex_Mono({ subsets: ['latin'], variable: '--font-mono', weight: ['400', '500'] })
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-mono',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Stories',
   description: 'Stories',
 }
-
-
 
 export default function RootLayout({
   children,
@@ -20,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${sans.variable} ${mono.variable}`}>
+      <body className={`${atkinson.variable} ${jetbrains.variable}`}>
         {children}
       </body>
     </html>

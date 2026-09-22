@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const lines = [
   "The first page smelled like rain and ozone.",
@@ -9,36 +9,35 @@ const lines = [
   "She left a note that only appeared in the margins.",
   "We found the map folded inside a song.",
   "Every clock in the house struck thirteen, softly.",
-]
+];
 
 const OpeningLines = () => {
-  const [index, setIndex] = useState(0)
+  const [index, setIndex] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setIndex((prev) => (prev + 1) % lines.length)
-    }, 3200)
-    return () => clearInterval(id)
-  }, [])
+      setIndex((prev) => (prev + 1) % lines.length);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
-    <div className="relative overflow-hidden rounded-md px-5 md:px-6 py-5 md:py-6 border border-[#c6c6c3] bg-[#f5f5f3]">
-      <div className="text-[10px] md:text-[11px] uppercase tracking-[0.28em] text-[#5f5f5a] font-medium">Opening line</div>
+    <div className="border-t border-[var(--border)] py-6 my-6">
+      <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-faint)] mb-2">Opening line</p>
       <AnimatePresence mode="wait">
         <motion.p
           key={index}
-          initial={{ opacity: 0, y: 6 }}
+          initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.35 }}
-          className="mt-3 text-lg md:text-2xl ink-title text-[#101010]"
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.3 }}
+          className="text-base md:text-lg text-[var(--text-muted)] italic leading-relaxed"
         >
-          {lines[index]}
+          &ldquo;{lines[index]}&rdquo;
         </motion.p>
       </AnimatePresence>
-      <div className="mt-5 h-[1px] w-full bg-[#c6c6c3]"></div>
     </div>
-  )
-}
+  );
+};
 
-export default OpeningLines
+export default OpeningLines;

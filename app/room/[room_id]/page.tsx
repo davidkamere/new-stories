@@ -19,26 +19,24 @@ import Modal from 'react-modal';
 
 
 
-const customStyles = {
-    overlay: {
-        backgroundColor: 'rgba(10, 10, 8, 0.45)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 60,
-    },
-    content: {
-        top: '50%',
-        left: '50%',
-        right: 'auto',
-        bottom: 'auto',
-        // width: '50%',
-        marginRight: '-50%',
-        transform: 'translate(-50%, -50%)',
-        background: '#fcfcfc',
-        border: '1px solid #dcdddf',
-        borderRadius: '10px',
-        backdropFilter: 'blur(100px)',
-        zIndex: 61,
-    },
+const modalStyles = {
+  overlay: {
+    backgroundColor: 'rgba(45, 43, 40, 0.4)',
+    backdropFilter: 'blur(4px)',
+    zIndex: 60,
+  },
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    zIndex: 61,
+  },
 };
 
 export default function Page({ params }: { params: { room_id: string } }) {
@@ -57,6 +55,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const [startMode, setStartMode] = useState<'continue' | 'paragraph'>('continue')
     const [highlightOwn, setHighlightOwn] = useState<boolean>(true)
     const [readingMode, setReadingMode] = useState<boolean>(false)
+    const [currentParagraphIdx, setCurrentParagraphIdx] = useState<number>(0)
     const [forking, setForking] = useState<boolean>(false)
     const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const LOCK_TIMEOUT_MS = 60000
@@ -83,6 +82,39 @@ export default function Page({ params }: { params: { room_id: string } }) {
         setIsPenOpen(false)
         setPenDraft('')
     }
+
+  const handleForkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (forking) return
+    setForking(true)
+    try {
+      const forkTitle = (forkName || `${story.story_title} (Fork)`).trim()
+      const forkContent = `${story.story_content || ''}\n\n[forked-from:${story.story_title}]`
+      const created = await createNewRoom(forkTitle, story.story_content || '', story.genre || '')
+      if (!created?.[0]?.room_id) return
+      await supabase
+        .from('Rooms')
+        .update({ story_content: forkContent })
+        .eq('room_id', created[0].room_id)
+      const newRoomId = created?.[0]?.room_id
+      if (newRoomId) {
+        if (penName) localStorage.setItem(`penname:${newRoomId}`, penName)
+        router.push(`/room/${newRoomId}`)
+      }
+    } finally {
+      setForking(false)
+      closeForkModal()
+    }
+  }
+
+  const handlePenSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = penDraft.trim()
+    if (!name) return
+    localStorage.setItem(`penname:${room_id}`, name)
+    setPenName(name)
+    closePenModal()
+  }
 
     const room_id = params.room_id
     const socketRef = useRef<any>(null)
@@ -127,18 +159,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
     useEffect(() => {
         getStoryfromDB()
     }, [getStoryfromDB])
-
-    const colorForAuthor = (name: string) => {
-        let hash = 0
-        for (let i = 0; i < name.length; i++) {
-            hash = (hash * 31 + name.charCodeAt(i)) | 0
-        }
-        const hue = Math.abs(hash) % 360
-        return {
-            base: `hsl(${hue}, 70%, 45%)`,
-            bg: `hsla(${hue}, 85%, 75%, 0.35)`
-        }
-    }
 
     const parseStoryContent = (raw: string) => {
         if (!raw) return []
@@ -325,6 +345,50 @@ export default function Page({ params }: { params: { room_id: string } }) {
         }
     }, [lockState, content, penName, lockCountdown, room_id])
 
+  // Reading mode keyboard navigation
+  useEffect(() => {
+    if (!readingMode) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+      const { segments } = getRoomStatus()
+      let paragraphCount = 0
+      let current: Array<any> = []
+      segments.forEach((seg: any) => {
+        if (seg.mode === 'paragraph') {
+          if (current.length > 0) paragraphCount++
+          current = [seg]
+        } else {
+          if (current.length === 0) current = [seg]
+          else current.push(seg)
+        }
+      })
+      if (current.length > 0) paragraphCount++
+
+      if (paragraphCount === 0) return
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault()
+        setCurrentParagraphIdx((prev) => Math.min(prev + 1, paragraphCount - 1))
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault()
+        setCurrentParagraphIdx((prev) => Math.max(prev - 1, 0))
+      } else if (e.key === 'Home') {
+        e.preventDefault()
+        setCurrentParagraphIdx(0)
+      } else if (e.key === 'End') {
+        e.preventDefault()
+        setCurrentParagraphIdx(paragraphCount - 1)
+      } else if (e.key === 'Escape') {
+        setReadingMode(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [readingMode])
 
     const saveContributionToDB = async (content: string) => {
         const { data, error } = await supabase
@@ -404,137 +468,119 @@ export default function Page({ params }: { params: { room_id: string } }) {
     
 
     return (
-        <div>
+        <div className="content-column">
             
-            <Header/>
-            <Modal isOpen={isOpen} onRequestClose={closeModal} style={customStyles} >
-                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#d16a1c]">Confirm</div>
-                    <div className="ink-title text-2xl mt-2 text-[#1b1a17]">Add this to the story?</div>
-                    <p className="text-sm text-[#8f7f74] mt-2">
-                        Once submitted, this piece can’t be edited — but others can build on it.
-                    </p>
-
-                    {saveError && (
-                        <div className="mt-4 text-sm text-red-600">
-                            {saveError}
-                        </div>
-                    )}
-
-                    <div className="flex flex-col md:flex-row md:justify-between gap-3 mt-6">
-                        <button
-                            type="button"
-                            className="px-5 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
-                            onClick={deleteEdits}
-                        >
-                            Clear Draft
-                        </button>
-                        <button
-                            type="button"
-                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
-                            onClick={saveEdits}
-                        >
-                            Add to Story
-                        </button>
-                    </div>
+            {!readingMode && <Header/>}
+            <Modal isOpen={isOpen} onRequestClose={closeModal} style={modalStyles} contentLabel="Confirm contribution" >
+          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={saveEdits}>
+            <div className="sheet-header">
+              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Confirm</p>
+              <h2 className="ink-title text-2xl mt-1">Add this to the story?</h2>
+              <p className="text-small text-[var(--text-muted)] mt-1">
+                Once submitted, this piece can’t be edited — but others can build on it.
+              </p>
+            </div>
+            <div className="sheet-content">
+              {saveError && (
+                <div className="mb-4 text-sm text-[var(--accent)]" role="alert">
+                  {saveError}
                 </div>
-            </Modal>
-            <Modal isOpen={isForkOpen} onRequestClose={closeForkModal} style={customStyles}>
-                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">Fork Story</div>
-                    <div className="ink-title text-2xl mt-2">Name your fork</div>
-                    <p className="text-sm text-[#8f7f74] mt-2">
-                        This creates a new story starting from the current one.
-                    </p>
-                    <input
-                        type="text"
-                        placeholder={`${story.story_title} (Fork)`}
-                        value={forkName}
-                        onChange={(e) => setForkName(e.target.value)}
-                        className="w-full mt-4 p-3 border border-[#c6c6c3] bg-[#f7f7f5] text-sm focus:outline-none focus:border-[#101010]"
-                    />
-                    <div className="flex justify-end space-x-3 mt-6">
-                        <button
-                            type="button"
-                            onClick={closeForkModal}
-                            className="px-4 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
-                            onClick={async () => {
-                                setForking(true)
-                                try {
-                                    const forkTitle = (forkName || `${story.story_title} (Fork)`).trim()
-                                    const forkContent = `${story.story_content || ''}\n\n[forked-from:${story.story_title}]`
-                                    const created = await createNewRoom(forkTitle, story.story_content || '', story.genre || '')
-                                    if (!created?.[0]?.room_id) return
-                                    await supabase
-                                        .from('Rooms')
-                                        .update({ story_content: forkContent })
-                                        .eq('room_id', created[0].room_id)
-                                    const newRoomId = created?.[0]?.room_id
-                                    if (newRoomId) {
-                                        if (penName) localStorage.setItem(`penname:${newRoomId}`, penName)
-                                        router.push(`/room/${newRoomId}`)
-                                    }
-                                } finally {
-                                    setForking(false)
-                                    closeForkModal()
-                                }
-                            }}
-                        >
-                            Create Fork
-                        </button>
-                    </div>
-                </div>
-            </Modal>
-            <Modal isOpen={isPenOpen} onRequestClose={closePenModal} style={customStyles}>
-                <div className="paper-bg rounded-md p-6 md:p-8 w-[90vw] max-w-[520px]">
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-[#5f5f5a]">Pen Name</div>
-                    <div className="ink-title text-2xl mt-2">Update your pen name</div>
-                    <p className="text-sm text-[#8f7f74] mt-2">
-                        This only changes your name for this story.
-                    </p>
-                    <input
-                        type="text"
-                        placeholder="Pen name"
-                        value={penDraft}
-                        onChange={(e) => setPenDraft(e.target.value)}
-                        className="w-full mt-4 p-3 border border-[#c6c6c3] bg-[#f7f7f5] text-sm focus:outline-none focus:border-[#101010]"
-                    />
-                    <div className="flex justify-end space-x-3 mt-6">
-                        <button
-                            type="button"
-                            onClick={closePenModal}
-                            className="px-4 py-2 text-sm border border-[#c6c6c3] bg-[#f7f7f5]"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            className="stamp px-5 py-2 text-sm border border-[#101010] bg-[#efefec] hover:bg-[#e4e4e0]"
-                            onClick={() => {
-                                const name = penDraft.trim()
-                                if (!name) return
-                                localStorage.setItem(`penname:${room_id}`, name)
-                                setPenName(name)
-                                closePenModal()
-                            }}
-                        >
-                            Save
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+              )}
+              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={deleteEdits}
+                >
+                  Clear Draft
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Add to Story
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+            <Modal isOpen={isForkOpen} onRequestClose={closeForkModal} style={modalStyles} contentLabel="Fork story" >
+          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={handleForkSubmit}>
+            <div className="sheet-header">
+              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Fork Story</p>
+              <h2 className="ink-title text-2xl mt-1">Name your fork</h2>
+              <p className="text-small text-[var(--text-muted)] mt-1">
+                This creates a new story starting from the current one.
+              </p>
+            </div>
+            <div className="sheet-content">
+              <input
+                type="text"
+                placeholder={`${story.story_title} (Fork)`}
+                value={forkName}
+                onChange={(e) => setForkName(e.target.value)}
+                className="input"
+              />
+              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={closeForkModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forking}
+                  className="btn btn-primary"
+                >
+                  {forking ? 'Forking…' : 'Create Fork'}
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+            <Modal isOpen={isPenOpen} onRequestClose={closePenModal} style={modalStyles} contentLabel="Update pen name" >
+          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={handlePenSubmit}>
+            <div className="sheet-header">
+              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Pen Name</p>
+              <h2 className="ink-title text-2xl mt-1">Update your pen name</h2>
+              <p className="text-small text-[var(--text-muted)] mt-1">
+                This only changes your name for this story.
+              </p>
+            </div>
+            <div className="sheet-content">
+              <input
+                type="text"
+                placeholder="Pen name"
+                value={penDraft}
+                onChange={(e) => setPenDraft(e.target.value)}
+                className="input"
+              />
+              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={closePenModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
             {story.story_content ?
-            <div className="min-h-screen flex flex-col px-6 py-2 mb-20">
+            <div className="min-h-screen flex flex-col py-2 mb-20">
                 <div className="mt-6 px-2 flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center space-x-2 md:space-x-3 flex-wrap gap-2">
-                        <Link href="/" className="text-xs px-2 py-1 border border-[#c6c6c3] bg-[#f7f7f5]">←</Link>
-                        <span className="text-[10px] md:text-xs px-3 py-1 border border-[#c6c6c3] bg-[#f7f7f5] uppercase tracking-[0.12em]" style={{ ["--genre-hue" as any]: (story?.genre || 'story').length * 9, color: 'var(--muted)' }}>
+                        <Link href="/" className="btn btn-ghost text-xs px-2 py-1">←</Link>
+                        <span className="badge badge-muted">
                             #{story.genre}
                         </span>
                         {penName && (
@@ -544,7 +590,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     setPenDraft(penName)
                                     setIsPenOpen(true)
                                 }}
-                                className="text-[10px] md:text-xs text-[#5f5f5a] underline decoration-dotted underline-offset-4 hover:text-[#101010] transition"
+                                className="btn btn-ghost text-xs"
                             >
                                 Pen name: {penName}
                             </button>
@@ -554,19 +600,19 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         <button
                             type="button"
                             onClick={() => setReadingMode((prev) => !prev)}
-                            className={`text-[10px] md:text-xs px-3 md:px-4 py-2 border ${readingMode ? 'bg-[#101010] text-white' : 'border-[#c6c6c3] bg-[#f7f7f5] text-[#101010]'}`}
+                            className={`btn ${readingMode ? 'btn-primary' : 'btn-secondary'}`}
                         >
                             {readingMode ? 'Exit Reading Mode' : 'Reading Mode'}
                         </button>
                         <button
                             type="button"
                             disabled={forking}
-                            onClick={async () => {
-                                if (forking) return
-                                setForkName('')
-                                setIsForkOpen(true)
+                            onClick={() => {
+                              if (forking) return
+                              setForkName('')
+                              setIsForkOpen(true)
                             }}
-                            className="text-[10px] md:text-xs px-3 py-2 border border-[#101010] text-[#101010] bg-[#efefec]"
+                            className="btn btn-secondary"
                         >
                             {forking ? 'Forking…' : 'Fork Story'}
                         </button>
@@ -579,7 +625,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     const match = story.story_content?.match(/\[forked-from:([^\]]+)\]/)
                     if (!match) return null
                     return (
-                        <div className="px-2 mt-2 text-sm text-[#8f7f74]">
+                        <div className="px-2 mt-2 text-small text-[var(--text-muted)]">
                             Forked from: {match[1].trim()}
                         </div>
                     )
@@ -587,51 +633,47 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 {!readingMode && (
                     <div className="px-2 mt-3">
                         {lockState === 'self' && (
-                            <div className="inline-flex items-center space-x-2">
-                                <span className="h-2 w-2 rounded-full bg-[#2f7a43] type-dot"></span>
-                                <span className="text-sm text-[#8f7f74]">Your turn</span>
-                            </div>
+                            <span className="badge badge-accent">
+                              <span className="status-dot status-typing mr-1.5" />
+                              Your turn
+                            </span>
                         )}
                         {lockState === 'open' && (
-                            <div className="text-sm text-[#8f7f74] opacity-80">
+                            <span className="text-small text-[var(--text-muted)]">
                                 Story is open — claim the turn when ready.
-                            </div>
+                            </span>
                         )}
                         {lockState === 'other' && (
-                            <div className="text-sm text-[#d16a1c] bg-[#f3ede7] border border-[#d3c8bc] px-4 py-1 inline-block">
-                                Someone else is writing right now.
-                            </div>
+                            <span className="badge" style={{ background: 'var(--selection)', color: 'var(--accent)', borderColor: 'var(--accent)' }}>
+                              Someone else is writing right now.
+                            </span>
                         )}
                     </div>
                 )}
                 <div className="mt-6">
-                    <aside className="rounded-2xl p-2 mb-6">
+                    <aside>
                         <details>
-                            <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-[#8f7f74]">
+                            <summary className="cursor-pointer text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">
                                 Contributors ({getRoomStatus().uniqueAuthors.length})
                             </summary>
-                            <div className="mt-4 flex flex-wrap gap-3">
-                                {getRoomStatus().uniqueAuthors.map((name) => {
-                                    const color = colorForAuthor(name)
-                                    return (
-                                        <div key={name} className="flex items-center space-x-2 text-sm">
-                                            <span className="h-1.5 w-3 rounded-full" style={{ background: color.base }}></span>
-                                            <span className="truncate max-w-[120px]">{name}</span>
-                                        </div>
-                                    )
-                                })}
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {getRoomStatus().uniqueAuthors.map((name) => (
+                                  <span key={name} className="contributor-mark badge badge-muted">
+                                    {name}
+                                  </span>
+                                ))}
                             </div>
                         </details>
                     </aside>
-                    <div className={readingMode ? "leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
-                        <div className='mt-2 p-2 leading-8 text-normal '>
-                    {(() => {
-                        const { segments, uniqueAuthors, isContributor, isRoomFull } = getRoomStatus()
-                        return (
+                    <div className={readingMode ? "reading-mode leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
+                      <div className='mt-2 leading-8 text-normal '>
+                        {(() => {
+                          const { segments, uniqueAuthors, isContributor, isRoomFull } = getRoomStatus()
+                          return (
                             <>
                                 {isRoomFull && !isContributor && (
-                                    <div className="text-sm text-[#866e6e] mb-4">
-                                        This story already has 12 contributors. You can read, but new contributors can’t add.
+                                    <div className="text-small text-[var(--text-muted)] mb-4">
+                                        This story already has 12 contributors. You can read, but new contributors can't add.
                                     </div>
                                 )}
                                 {(() => {
@@ -648,69 +690,68 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     })
                                     if (current.length > 0) paragraphs.push(current)
 
-                                    return paragraphs.map((para, pIdx) => (
-                                        <p key={`p-${pIdx}`} className="mb-6 leading-7">
-                                            {para.map((seg: any, sIdx: number) => {
-                                                const color = colorForAuthor(seg.author)
-                                                const isHighlighted = hoverAuthor === seg.author || (highlightOwn && penName && seg.author === penName)
-                                                return (
-                                                    <span
-                                                        key={`${seg.author}-${pIdx}-${sIdx}`}
-                                                        onMouseEnter={() => setHoverAuthor(seg.author)}
-                                                        onMouseLeave={() => setHoverAuthor(null)}
-                                                        className="group relative whitespace-pre-wrap py-0.5 rounded"
-                                                        style={{ background: isHighlighted ? color.bg : 'transparent' }}
-                                                        title={seg.author}
-                                                    >
-                                                        {sIdx > 0 ? ' ' : ''}
-                                                        {seg.text}
-                                                        <span className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-black text-white text-xs opacity-0 group-hover:opacity-90 transition-opacity pointer-events-none">
-                                                            {seg.author}
+                                    return paragraphs.map((para, pIdx) => {
+                                        const isCurrentParagraph = readingMode && pIdx === currentParagraphIdx
+                                        const paragraphStyle = readingMode && !isCurrentParagraph
+                                            ? { opacity: 0.45 }
+                                            : {}
+
+                                        return (
+                                            <p
+                                                key={`p-${pIdx}`}
+                                                className="mb-6 leading-7"
+                                                style={paragraphStyle}
+                                                onClick={() => readingMode && setCurrentParagraphIdx(pIdx)}
+                                            >
+                                                {para.map((seg: any, sIdx: number) => {
+                                                    const isHighlighted = hoverAuthor === seg.author || (highlightOwn && penName && seg.author === penName)
+                                                    const isCurrentLine = readingMode && isCurrentParagraph && sIdx === para.length - 1
+                                                    return (
+                                                        <span
+                                                            key={`${seg.author}-${pIdx}-${sIdx}`}
+                                                            onMouseEnter={() => setHoverAuthor(seg.author)}
+                                                            onMouseLeave={() => setHoverAuthor(null)}
+                                                            className="group relative whitespace-pre-wrap py-0.5 rounded"
+                                                            style={{
+                                                                background: isCurrentLine ? 'var(--focus-line)'
+                                                                  : isHighlighted ? 'var(--selection)'
+                                                                  : 'transparent'
+                                                            }}
+                                                            title={seg.author}
+                                                        >
+                                                            {sIdx > 0 ? ' ' : ''}
+                                                            <span className="contributor-mark" style={{ '--author-color': seg.author }}>
+                                                              {seg.text}
+                                                            </span>
+                                                            <span className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-[var(--text)] text-[var(--bg)] text-xs opacity-0 group-hover:opacity-90 transition-opacity pointer-events-none">
+                                                                {seg.author}
+                                                            </span>
                                                         </span>
-                                                    </span>
-                                                )
-                                            })}
-                                        </p>
-                                    ))
+                                                    )
+                                                })}
+                                            </p>
+                                        )
+                                    })
                                 })()}
                             </>
                         )
-                    })()}
-                        </div>
+                      })()}
+                      </div>
                     </div>
-                </div>
-                {/*
-                <div className="px-2 mt-4">
-                    <details>
-                        <summary className="cursor-pointer text-xs uppercase tracking-[0.3em] text-[#8f7f74]">
-                            Recent Contributions
-                        </summary>
-                        <div className="mt-3 space-y-2 text-sm text-[#8f7f74]">
-                            {getRoomStatus().segments.slice(-5).reverse().map((seg, idx) => (
-                                <div key={`${seg.author}-${idx}`} className="flex items-center justify-between">
-                                    <span className="truncate max-w-[70%]">{seg.author}</span>
-                                    <span className="text-xs">
-                                        {seg.at ? new Date(seg.at).toLocaleString() : '—'}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </details>
-                </div>
-                */}
+                  </div>
                 {!readingMode && (
                 <div className="mt-8 mb-4 px-2 relative">
                     {lockState === 'self' && content.trim().length > 0 && (
                         <div className="mb-3 flex items-center space-x-3">
-                            <div className="text-sm text-[#d16a1c] bg-[#f3ede7] border border-[#d3c8bc] px-4 py-1 inline-block">
+                            <span className="badge" style={{ background: 'var(--selection)', color: 'var(--accent)', borderColor: 'var(--accent)' }}>
                                 You are the only one writing right now.
-                            </div>
-                            <label className="flex items-center space-x-2 cursor-pointer text-xs text-[#8f7f74]">
+                            </span>
+                            <label className="flex items-center space-x-2 cursor-pointer text-small text-[var(--text-muted)]">
                                 <input
                                     type="checkbox"
                                     checked={highlightOwn}
                                     onChange={(e) => setHighlightOwn(e.target.checked)}
-                                    className="accent-[#101010]"
+                                    className="accent-[var(--accent)]"
                                 />
                                 <span>Highlight my contributions</span>
                             </label>
@@ -720,14 +761,14 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         const { isContributor, isRoomFull } = getRoomStatus()
                         if (isRoomFull && !isContributor) {
                             return (
-                                <div className="cinematic-lock rounded-2xl border border-[#2b2926] flex items-center justify-center text-sm min-h-40 w-full">
+                                <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)]">
                                     Read-only: this story is full.
                                 </div>
                             )
                         }
                         return (
                             !penName ? (
-                                <div className="rounded-lg bg-white/70 border border-[#FEE2E2] flex items-center justify-center text-sm text-[#866e6e] min-h-40 w-full">
+                                <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)] border border-[var(--accent)]">
                                     Choose a pen name from the main page to write.
                                 </div>
                             ) : lockState === 'self' ? (
@@ -761,18 +802,18 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                         }))
                                 upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
                                     }}
-                                    className="paper-bg rounded-2xl border border-[#c3f680] flex items-center justify-center text-sm text-[#8f7f74] min-h-40 w-full hover:bg-white"
+                                    className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)] hover:bg-[var(--bg)] transition-colors border border-[var(--success)]"
                                 >
                                     Tap to start writing
                                 </button>
                             ) : (
-                                <div className="cinematic-lock rounded-2xl border border-[#2b2926] flex items-center justify-center text-sm min-h-40">
-                                    <div className="flex flex-col items-center space-y-3">
+                                <div className="surface flex items-center justify-center text-sm min-h-40 border border-[var(--border)]">
+                                    <div className="flex flex-col items-center space-y-3 text-[var(--text-muted)]">
                                         <span className="text-base">Waiting on the writer…</span>
                                         <span className="flex items-center space-x-2">
-                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce [animation-delay:-0.2s]"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[#101010] animate-bounce [animation-delay:0.2s]"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:-0.2s]"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce"></span>
+                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:0.2s]"></span>
                                         </span>
                                     </div>
                                 </div>
@@ -782,45 +823,45 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 </div>
                 )}
                 {!readingMode && lockState === 'self' && content.trim().length === 0 && lockCountdown > 0 && (
-                    <div className="text-[#8f7f74] flex text-sm justify-center px-2 transform transition ease-in">
+                    <div className="text-[var(--text-muted)] flex text-small justify-center px-2 transform transition ease-in">
                         Start typing within{" "}
-                        <span className="text-[#1b1a17] font-semibold px-1">
+                        <span className="text-[var(--text)] font-semibold px-1">
                             {lockCountdown}s
                         </span>{" "}
                         to keep the turn.
                     </div>
                 )}
                 {!readingMode && lockState === 'self' && (
-                    <div className="flex flex-col items-center justify-center text-sm text-[#8f7f74] px-2 mt-3 space-y-4">
-                        <div className="text-center text-xs uppercase tracking-[0.25em] text-[#8f7f74]">
+                    <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
+                        <div className="text-center text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">
                             Start mode
                         </div>
-                        <div className="text-center text-sm text-[#8f7f74]">
-                            <span className="font-semibold text-[#1b1a17]">Continue</span> keeps you in the same paragraph.{" "}
-                            <span className="font-semibold text-[#1b1a17]">New paragraph</span> starts a fresh line.
+                        <div className="text-center text-small text-[var(--text-muted)]">
+                            <span className="font-semibold text-[var(--text)]">Continue</span> keeps you in the same paragraph.{" "}
+                            <span className="font-semibold text-[var(--text)]">New paragraph</span> starts a fresh line.
                         </div>
                         <div className="flex items-center justify-center space-x-3">
                             <button
                                 type="button"
                                 onClick={() => setStartMode('continue')}
-                                className={`px-4 py-2 border flex items-center space-x-2 ${startMode === 'continue' ? 'border-[#101010] text-[#101010] bg-[#efefec]' : 'border-[#c6c6c3] text-[#5f5f5a] bg-[#f7f7f5]'} `}
+                                className={`btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[#c6c6c3]">↩︎</span>
+                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]">↩︎</span>
                                 <span>Continue</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setStartMode('paragraph')}
-                                className={`px-4 py-2 border flex items-center space-x-2 ${startMode === 'paragraph' ? 'border-[#101010] text-[#101010] bg-[#efefec]' : 'border-[#c6c6c3] text-[#5f5f5a] bg-[#f7f7f5]'} `}
+                                className={`btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[#c6c6c3]">¶</span>
+                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]">¶</span>
                                 <span>New paragraph</span>
                             </button>
                             {lockCountdown > 0 && (
                                 <div
-                                    className="h-10 w-10 border border-[#101010] flex items-center justify-center text-[10px] text-[#101010]"
+                                    className="h-10 w-10 border border-[var(--text)] flex items-center justify-center text-micro text-[var(--text)]"
                                     style={{
-                                        background: `conic-gradient(#bdbdb8 ${Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360)}deg, rgba(0,0,0,0.05) 0deg)`
+                                        background: `conic-gradient(var(--text-muted) ${Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360)}deg, var(--border) 0deg)`
                                     }}
                                 >
                                     {lockCountdown}
@@ -830,7 +871,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     </div>
                 )}
                 {!readingMode && lockState === 'other' && (
-                    <div className="text-[#866e6e] flex text-sm  justify-center px-4 transform transition ease-in">
+                    <div className="text-[var(--text-muted)] flex text-small  justify-center px-4 transform transition ease-in">
                         Another user is currently writing. You can start once they submit.
                     </div>
                 )}
@@ -839,7 +880,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         <>
                             <div className="w-full flex justify-center px-2 font-bold mt-6">
                                 <motion.div whileHover={{ x: 1 , y: 1}}>
-                                    <button onClick={() => setIsOpen(true)} className="stamp px-8 py-4 bg-[#efefec] border-[#101010] flex flex-row border rounded-md hover:bg-[#e4e4e0] transition duration-200 ease-in-out">
+                                    <button onClick={() => setIsOpen(true)} className="btn btn-primary px-8 py-4">
                                         <p className="pr-2 uppercase tracking-[0.2em] text-sm"> Add to Story </p>
                                     </button>
                                 </motion.div>       
@@ -848,7 +889,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 }
                 
             </div> :
-            <div className="min-h-screen flex justify-center items-center animate-ping -mt-36">
+            <div className="content-column min-h-[60vh] flex justify-center items-center">
                 
             </div>
             }
