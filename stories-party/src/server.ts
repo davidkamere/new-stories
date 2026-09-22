@@ -1,90 +1,110 @@
-import type * as Party from "partykit/server";
-import { onConnect } from "y-partykit";
+import { DurableObject } from "cloudflare:workers";
 
-export default class Server implements Party.Server {
-  private connUsers = new Map<string, string>();
+interface Env {
+  ROOM: DurableObjectNamespace;
+}
 
-  constructor(public room: Party.Room) {}
+export class PartyServer extends DurableObject<Env> {
+  private connUsers = new Map<WebSocket, string>();
 
-  async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-      // A websocket just connected!
-      console.log(
-        `Connected:
-          id: ${conn.id}
-          room: ${this.room.id}
-          url: ${new URL(ctx.request.url).pathname}`
-      );
+  async fetch(request: Request): Promise<Response> {
+    const upgradeHeader = request.headers.get("Upgrade");
+    if (upgradeHeader !== "websocket") {
+      return new Response("Expected websocket", { status: 400 });
+    }
 
-      const activeUser = await this.room.storage.get<string>("activeUser");
-      conn.send(JSON.stringify({ type: "lock", activeUser: activeUser ?? null }));
+    const [client, server] = Object.values(new WebSocketPair());
+    
+    // Accept the WebSocket connection
+    this.ctx.acceptWebSocket(server);
+    
+    // Send current lock state to new connection
+    const activeUser = await this.ctx.storage.get<string>("activeUser");
+    server.send(JSON.stringify({ type: "lock", activeUser: activeUser ?? null }));
 
-      return onConnect(conn, this.room, {
-        // experimental: persists the document to partykit's room storage
-        
-        persist: { mode: "snapshot" },
-
-
-        // Or, you can load/save to your own database or storage
-        async load(): Promise<any>  {
-          // load a document from a database, or some remote resource
-          // and return a Y.Doc instance here (or null if no document exists)
-        },
-
-        callback: {
-          async handler(yDoc) {
-            // called every few seconds after edits
-            // broadcast the document to all connections in the room
-          },
-          // control how often handler is called with these options
-          debounceWait: 10000, // default: 2000 ms
-          debounceMaxWait: 20000, // default: 10000 ms
-          timeout: 5000 // default: 5000 ms
-        }
-      });
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
   }
 
-  async onMessage(message: string, sender: Party.Connection) {
-      let data: any = null;
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    const msg = typeof message === "string" ? message : new TextDecoder().decode(message);
+    let data: any = null;
+    
+    try {
+      data = JSON.parse(msg);
+    } catch {
+      return;
+    }
+
+    if (data?.type === "start_editing" && data?.user) {
+      const activeUser = await this.ctx.storage.get<string>("activeUser");
+      if (activeUser && activeUser !== data.user) {
+        ws.send(JSON.stringify({ type: "lock", activeUser }));
+        return;
+      }
+
+      this.connUsers.set(ws, data.user);
+      await this.ctx.storage.put("activeUser", data.user);
+      this.broadcast({ type: "lock", activeUser: data.user });
+      return;
+    }
+
+    if (data?.type === "stop_editing" && data?.user) {
+      const activeUser = await this.ctx.storage.get<string>("activeUser");
+      if (activeUser && activeUser === data.user) {
+        await this.ctx.storage.delete("activeUser");
+        this.broadcast({ type: "lock", activeUser: null });
+      }
+      return;
+    }
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+    const user = this.connUsers.get(ws);
+    this.connUsers.delete(ws);
+    
+    if (!user) return;
+    
+    const activeUser = await this.ctx.storage.get<string>("activeUser");
+    if (activeUser && activeUser === user) {
+      await this.ctx.storage.delete("activeUser");
+      this.broadcast({ type: "lock", activeUser: null });
+    }
+  }
+
+  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+    console.error("WebSocket error:", error);
+    await this.webSocketClose(ws, 1011, "Error", false);
+  }
+
+  private broadcast(message: object): void {
+    const msg = JSON.stringify(message);
+    for (const ws of this.ctx.getWebSockets()) {
       try {
-        data = JSON.parse(message);
-      } catch {
-        return;
+        ws.send(msg);
+      } catch (e) {
+        console.error("Broadcast error:", e);
       }
-
-      if (data?.type === "start_editing" && data?.user) {
-        const activeUser = await this.room.storage.get<string>("activeUser");
-        // If someone else already has the lock, do not override.
-        if (activeUser && activeUser !== data.user) {
-          sender.send(JSON.stringify({ type: "lock", activeUser }));
-          return;
-        }
-
-        this.connUsers.set(sender.id, data.user);
-        await this.room.storage.put("activeUser", data.user);
-        this.room.broadcast(JSON.stringify({ type: "lock", activeUser: data.user }));
-        return;
-      }
-
-      if (data?.type === "stop_editing" && data?.user) {
-        const activeUser = await this.room.storage.get<string>("activeUser");
-        if (activeUser && activeUser === data.user) {
-          await this.room.storage.delete("activeUser");
-          this.room.broadcast(JSON.stringify({ type: "lock", activeUser: null }));
-        }
-        return;
-      }
-  }
-
-  async onClose(conn: Party.Connection) {
-      const user = this.connUsers.get(conn.id);
-      this.connUsers.delete(conn.id);
-      if (!user) return;
-      const activeUser = await this.room.storage.get<string>("activeUser");
-      if (activeUser && activeUser === user) {
-        await this.room.storage.delete("activeUser");
-        this.room.broadcast(JSON.stringify({ type: "lock", activeUser: null }));
-      }
+    }
   }
 }
 
-Server satisfies Party.Worker;
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    
+    // Health check
+    if (url.pathname === "/health") {
+      return new Response("OK");
+    }
+
+    // Route to Durable Object
+    const roomName = url.pathname.slice(1) || "default"; // Remove leading slash
+    const id = env.ROOM.idFromName(roomName);
+    const stub = env.ROOM.get(id);
+    
+    return stub.fetch(request);
+  },
+} satisfies ExportedHandler<Env>;
