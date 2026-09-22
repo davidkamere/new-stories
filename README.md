@@ -6,7 +6,7 @@ A collaborative storytelling app where **exactly one writer** can type at a time
 
 ## Why this project
 
-WebSocket systems get tricky when multiple clients act at once. Here, several users can click “start writing” simultaneously, which creates race conditions around who owns the edit lock. The core goal is to **enforce single‑writer safety** while keeping everyone else live‑synced.
+WebSocket systems get tricky when multiple clients act at once. Here, several users can click "start writing" simultaneously, which creates race conditions around who owns the edit lock. The core goal is to **enforce single‑writer safety** while keeping everyone else live‑synced.
 
 This project is a study in:
 - **Lock acquisition + broadcast** using Durable Object storage
@@ -17,138 +17,237 @@ This project is a study in:
 
 ## Architecture
 
-- **Frontend:** Next.js App Router + TipTap editor
-- **Realtime:** PartyKit (WebSocket server on Cloudflare Durable Objects)
-- **Persistence:** Supabase (story content + status metadata)
-- **Presence + status:** PartyKit lock broadcasts + Supabase realtime updates
+```
+┌─────────────────┐     WebSocket      ┌────────────────────────┐
+│   Next.js       │ ◄─────────────────► │  PartyKit Server       │
+│   Frontend      │                     │  (Durable Object)      │
+│                 │                     │  - Lock state in       │
+│  - Room page    │                     │    room.storage        │
+│  - Editor       │                     │  - Broadcasts lock     │
+│  - Story list   │                     │    changes to all      │
+└────────┬────────┘                     └───────────┬────────────┘
+         │                                          │
+         │ HTTPS                                    │
+         ▼                                          ▼
+┌─────────────────┐                     ┌────────────────────────┐
+│    Supabase     │                     │    PartyKit Room       │
+│                 │                     │    Storage (edge)      │
+│  - Rooms table  │                     │  - activeUser          │
+│  - Status table │                     │  - Y.Doc (optional)    │
+└─────────────────┘                     └────────────────────────┘
+```
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 14 (App Router), React 18, Tailwind CSS |
+| **Editor** | TipTap (headless, no collaboration extensions — uses custom lock) |
+| **Realtime** | PartyKit (WebSocket server on Cloudflare Durable Objects) |
+| **Persistence** | Supabase (PostgreSQL) |
+| **Auth** | Supabase Auth (email/password) — currently disabled in middleware |
 
 ---
 
-## Lock lifecycle (race‑condition control)
+## Core Concepts
 
-1. Client sends `start_editing`
-2. Durable Object checks `activeUser` in room storage
-3. If free, lock is granted and broadcast to all clients
-4. If occupied, request is rejected and UI stays locked
-5. On submit or timeout, lock is released and broadcast
+### Single-Writer Lock (Authoritative at the Edge)
 
----
+The **Durable Object** is the sole source of truth for who holds the lock. `activeUser` lives in `room.storage` — persistent, consistent, and race-free.
 
-## Code snippets
-
-### 1) Durable Object lock handling (PartyKit)
-**File:** `stories-party/src/server.ts`
-
-```ts
+**Server (`stories-party/src/server.ts`):**
+```typescript
 if (data?.type === "start_editing" && data?.user) {
   const activeUser = await this.room.storage.get<string>("activeUser");
   if (activeUser && activeUser !== data.user) {
     sender.send(JSON.stringify({ type: "lock", activeUser }));
-    return;
+    return; // Rejected — someone else has it
   }
-
-  this.connUsers.set(sender.id, data.user);
   await this.room.storage.put("activeUser", data.user);
   this.room.broadcast(JSON.stringify({ type: "lock", activeUser: data.user }));
-  return;
-}
-
-if (data?.type === "stop_editing" && data?.user) {
-  const activeUser = await this.room.storage.get<string>("activeUser");
-  if (activeUser && activeUser === data.user) {
-    await this.room.storage.delete("activeUser");
-    this.room.broadcast(JSON.stringify({ type: "lock", activeUser: null }));
-  }
-  return;
 }
 ```
 
-### 2) Client lock → UI transitions
-**File:** `app/room/[room_id]/page.tsx`
+**Client (`app/room/[room_id]/page.tsx`):**
+Three lock states reflected in UI:
 
-```ts
-const handleMessage = (event: MessageEvent) => {
-  const data = JSON.parse(event.data)
-  if (data?.type === "lock") {
-    const activeUser = data?.activeUser
-    if (!activeUser) {
-      setLockState('open')
-      setEditable(false)
-      setCurrentlyEditing(false)
-      return
-    }
-    if (activeUser === penName) {
-      setLockState('self')
-      setEditable(true)
-    } else {
-      setLockState('other')
-      setEditable(false)
-      setCurrentlyEditing(false)
-      setContent('')
-      setClearContent(true)
-    }
-  }
-}
+| State | Meaning | UI |
+|-------|---------|-----|
+| `'open'` | No one writing | "Tap to start writing" button |
+| `'self'` | You have the lock | TipTap editor + 60s countdown timer |
+| `'other'` | Someone else writing | "Waiting on the writer…" |
+
+### Timeout-Based Deadlock Prevention
+
+When a user acquires the lock but types nothing, a **60-second countdown** starts. If still empty at expiry, the lock is auto-released (`stop_editing` sent). Countdown resets on any keystroke.
+
+### Two Writing Modes
+
+| Mode | Behavior | Storage Format |
+|------|----------|----------------|
+| `continue` | Appends inline to last paragraph | `existing [pen:Name\|mode:continue\|at:...] new text` |
+| `paragraph` | Starts new paragraph | `existing\n\n[pen:Name\|mode:paragraph\|at:...]\nnew text` |
+
+### Story Content Format
+
+```
+[pen:AuthorName|mode:continue|at:2024-01-15T10:30:00.000Z] First sentence.
+[pen:AnotherUser|mode:paragraph|at:2024-01-15T10:31:00.000Z]
+New paragraph content here.
+[forked-from:Original Title]  (added when forking)
 ```
 
-### 3) Timeout release (self‑healing)
-**File:** `app/room/[room_id]/page.tsx`
+Parsed by `parseStoryContent()` for:
+- Contributor list with unique colors (HSL hash of name)
+- Highlighting on hover / own contributions
+- Reading mode display
 
-```ts
-if (lockState === 'self' && content.trim().length === 0) {
-  lockTimeoutRef.current = setTimeout(() => {
-    if (lockState === 'self' && contentRef.current.trim().length === 0) {
-      socketRef.current?.send(JSON.stringify({
-        type: "stop_editing",
-        user: penName,
-      }))
-      upsertStatus(room_id, 'Idle')
-    }
-    setLockCountdown(0)
-  }, LOCK_TIMEOUT_MS)
-}
+### Real-time Status Updates
+
+Supabase Realtime on `Status` table shows live indicators:
+
+| Status value | UI | TTL |
+|--------------|-----|-----|
+| `Typing:{timestamp}` | Green "Typing" dot | 2 min |
+| `Active:{timestamp}` | "Recently active" ribbon | 30 min |
+| `Idle` | None | — |
+| `Complete` | Story marked complete | — |
+
+---
+
+## Data Model (Supabase)
+
+**Rooms Table**
+```sql
+room_id (uuid, pk)
+story_title (text)
+story_content (text)  -- annotated format above
+genre (text)
+created_at (timestamp)
 ```
 
-### 4) Continue vs paragraph persistence
-**File:** `app/room/[room_id]/page.tsx`
-
-```ts
-const header = `[pen:${penName || 'Anonymous'}|mode:${startMode}|at:${new Date().toISOString()}]`
-const normalizedDraft = draft.replace(/\s*\n\s*/g, ' ').trim()
-
-if (startMode === 'continue') {
-  const updatedContent = `${story.story_content.trimEnd()} ${header} ${normalizedDraft}`
-  await saveContributionToDB(updatedContent)
-} else {
-  const updatedContent = `${story.story_content.trimEnd()}\n\n${header}\n${normalizedDraft}`
-  await saveContributionToDB(updatedContent)
-}
+**Status Table**
+```sql
+room_id (uuid, pk, fk)
+status (text)  -- 'Typing:...', 'Active:...', 'Idle', 'Complete'
 ```
 
 ---
 
-## Suggested screenshots
+## User Flow
 
-1. **Home page with live typing indicator**
-   - Caption: “Stories update live, with typing/active status.”
-
-2. **Locked state (two tabs)**
-   - Caption: “Single‑writer lock prevents collisions.”
-
-3. **Editor with countdown**
-   - Caption: “Idle lock timeout frees the room if no typing.”
-
-4. **Contribution highlights**
-   - Caption: “Hover to see author highlights.”
-
-5. **Reading mode**
-   - Caption: “Story‑first view with editor hidden.”
+1. **Home** (`/`) → See all stories with live status badges
+2. **Click story** → Prompts for pen name (stored in `localStorage` per room)
+3. **Room page** (`/room/[id]`) → Connects to PartyKit WebSocket
+4. **Lock open** → Click "Tap to start writing" → sends `start_editing`
+5. **Lock granted** → Editor appears, 60s countdown starts
+5. **Write** → Choose Continue / New Paragraph
+6. **Submit** → "Add to Story" modal → saves to Supabase, releases lock
+7. **Read/Fork** → Reading mode hides editor; Fork creates new story
 
 ---
 
-## Notes
+## Notable Implementation Details
 
-- The lock is **authoritative at the edge** (Durable Object storage), not just in UI.
-- The UI reflects server truth, so even simultaneous clicks resolve cleanly.
-- Timeout keeps the system from stalling if someone grabs the turn and disappears.
+- **No TipTap Collaboration Extensions** — Uses custom lock + plain TipTap (history disabled)
+- **Pen names per-room** — Stored in `localStorage` keyed by `room_id`
+- **WebSocket URL** — Configurable via `NEXT_PUBLIC_PARTYKIT_HOST` (local vs prod)
+- **Auth disabled** — Middleware allows all routes public
+- **Forking** — Creates new room with `[forked-from:Original]` marker
+- **Contributor limit** — Max 12 unique authors per story
 
+---
+
+## File Map (Key Files)
+
+```
+/Users/davidkamere/Desktop/projects/new-stories/
+├── app/
+│   ├── page.tsx                    # Home: story list + create
+│   ├── room/[room_id]/page.tsx     # Main room: lock, editor, display
+│   ├── components/
+│   │   ├── StoryEditor.tsx         # TipTap editor (no collab)
+│   │   ├── Story.tsx               # Story card with status
+│   │   ├── Rooms.tsx               # Story list with filters
+│   │   ├── CreateRoom.tsx          # New story modal
+│   │   ├── Header.tsx              # Navigation
+│   │   └── OpeningLines.tsx        # Rotating quotes
+│   ├── globals.css                 # Design system (CSS variables)
+│   └── layout.tsx
+├── stories-party/
+│   ├── src/server.ts               # PartyKit Durable Object (lock logic)
+│   ├── src/client.ts               # PartyKit demo client
+│   └── partykit.json               # PartyKit config
+├── utils/
+│   ├── socket.js                   # WebSocket connection to PartyKit
+│   ├── db/
+│   │   ├── actions.ts              # Supabase CRUD (rooms, status)
+│   │   └── supabase.js             # Supabase clients
+│   └── auth.ts                     # Auth helpers (unused currently)
+└── middleware.ts                   # Auth disabled
+```
+
+---
+
+## Environment Variables (`.env`)
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_KEY=your-anon-key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your-publishable-key
+NEXT_PUBLIC_PARTYKIT_HOST=ws://127.0.0.1:1999  # local
+# NEXT_PUBLIC_PARTYKIT_HOST=wss://your-party.partykit.dev  # prod
+```
+
+---
+
+## Running Locally
+
+```bash
+# Install deps
+npm install
+
+# Start PartyKit dev server (in stories-party/)
+cd stories-party && npx partykit dev
+
+# Start Next.js (in root)
+npm run dev
+```
+
+- Next.js: http://localhost:3000
+- PartyKit: ws://127.0.0.1:1999
+
+---
+
+## Deployment
+
+| Component | Target |
+|-----------|--------|
+| Next.js | Vercel |
+| PartyKit | Cloudflare (via `partykit deploy`) |
+| Supabase | Managed PostgreSQL |
+
+PartyKit deploy publishes the Durable Object to Cloudflare's edge network. Update `NEXT_PUBLIC_PARTYKIT_HOST` to the deployed `wss://` URL.
+
+---
+
+## Extending the System
+
+### Add a new lock type (e.g., "editing-title")
+1. Server: Add message type in `server.ts` with its own storage key
+2. Client: Add lock state enum, UI, and message handlers
+3. Broadcast follows same pattern
+
+### Add realtime cursors
+- Enable `y-partykit` persistence callback
+- Broadcast `yDoc` awareness via PartyKit
+- Render remote cursors in `StoryEditor`
+
+### Enable auth
+- Remove middleware bypass
+- Add `@supabase/auth-helpers-nextjs` SSR client
+- Protect room routes, associate contributions with user ID
+
+---
+
+## License
+
+MIT
