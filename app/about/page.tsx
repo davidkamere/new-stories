@@ -11,7 +11,7 @@ const AboutPage = () => {
               How it works
             </div>
             <ul className="text-[var(--text-muted)] space-y-2 text-small">
-              <li>Start a new tale or hop into one already rolling.</li>
+              <li>Start a new story or jump into one already rolling.</li>
               <li>
                 When you add a line, it&apos;s locked in &mdash; but the story
                 keeps growing.
@@ -26,10 +26,10 @@ const AboutPage = () => {
                 House rules
               </div>
               <ul className="text-[var(--text-muted)] space-y-2 text-small">
-                <li>Pick a genre and stay in its vibe.</li>
-                <li>If it gets spicy, say so.</li>
+                <li>Pick a genre and stay in it.</li>
+               
                 <li>
-                  No likes, no ratings &mdash; just storytelling and good vibes.
+                  No likes, no ratings &mdash; just storytelling.
                 </li>
               </ul>
             </div>
@@ -59,9 +59,7 @@ const AboutPage = () => {
                 </div>
               </details>
             </div>
-            <div className="font-medium mt-7 text-[var(--text)] text-small uppercase tracking-[0.12em]">
-              Build stories. hand off cleanly. keep momentum.
-            </div>
+            
           </div>
         </section>
       </main>
