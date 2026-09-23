@@ -190,13 +190,13 @@ export default function Page({ params }: { params: { room_id: string } }) {
         return parsed
     }
 
-    const getRoomStatus = () => {
+    const getRoomStatus = useCallback(() => {
         const segments = parseStoryContent(story.story_content || '')
         const uniqueAuthors = Array.from(new Set(segments.map((s) => s.author)))
         const contributor = !!penName && uniqueAuthors.includes(penName)
         const full = uniqueAuthors.length >= 12
         return { segments, uniqueAuthors, isContributor: contributor, isRoomFull: full }
-    }
+    }, [story.story_content, penName])
 
     useEffect(() => {
         lockStateRef.current = lockState
@@ -388,7 +388,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [readingMode])
+  }, [readingMode, getRoomStatus])
 
     const saveContributionToDB = async (content: string) => {
         const { data, error } = await supabase
@@ -673,7 +673,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                             <>
                                 {isRoomFull && !isContributor && (
                                     <div className="text-small text-[var(--text-muted)] mb-4">
-                                        This story already has 12 contributors. You can read, but new contributors can't add.
+                                        This story already has 12 contributors. You can read, but new contributors can&apos;t add.
                                     </div>
                                 )}
                                 {(() => {
@@ -720,7 +720,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                                             title={seg.author}
                                                         >
                                                             {sIdx > 0 ? ' ' : ''}
-                                                            <span className="contributor-mark" style={{ '--author-color': seg.author }}>
+                                                            <span className="contributor-mark">
                                                               {seg.text}
                                                             </span>
                                                             <span className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-[var(--text)] text-[var(--bg)] text-xs opacity-0 group-hover:opacity-90 transition-opacity pointer-events-none">

@@ -130,7 +130,7 @@ const Story = ({ title, content, created_at, genre, room_id, payload, listView }
 
         <div className="flex flex-col md:items-end md:space-y-2 shrink-0">
           {genre && (
-            <span className="badge badge-muted" style={{ '--genre-hue': undefined as any }}>
+            <span className="badge badge-muted">
               {genre}
             </span>
           )}

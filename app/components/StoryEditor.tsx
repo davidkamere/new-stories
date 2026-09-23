@@ -24,12 +24,11 @@ type StoryEditorProps = {
 const StoryEditor = (props: StoryEditorProps) => {
   const { story, clearContent, setCurrentlyEditing, setClearContent, editable, onStartEditing, onContentChange } = props;
 
-  const [editor, setEditor] = useState<Editor | null>(null);
   const [hasNotifiedEditStart, setHasNotifiedEditStart] = useState(false);
   const editorRef = useRef<Editor | null>(null);
 
   useEffect(() => {
-    if (editor) return;
+    if (editorRef.current) return;
     if (story?.room_id) {
       const newEditor = new Editor({
         extensions: [
@@ -45,22 +44,24 @@ const StoryEditor = (props: StoryEditorProps) => {
         autofocus: true,
       });
 
-      setEditor(newEditor);
       editorRef.current = newEditor;
     }
 
     return () => {
       editorRef.current?.destroy();
+      editorRef.current = null;
     };
   }, [story?.room_id]);
 
   useEffect(() => {
-    if (!editor) return;
-    editor.setEditable(editable);
-  }, [editable, editor]);
+    if (!editorRef.current) return;
+    editorRef.current.setEditable(editable);
+  }, [editable]);
 
   useEffect(() => {
+    const editor = editorRef.current;
     if (!editor) return;
+
     const handleUpdate = () => {
       if (!editable || clearContent) return;
       if (!hasNotifiedEditStart) {
@@ -74,15 +75,15 @@ const StoryEditor = (props: StoryEditorProps) => {
     return () => {
       editor.off('update', handleUpdate);
     };
-  }, [editor, hasNotifiedEditStart, onStartEditing, setCurrentlyEditing, editable, clearContent, onContentChange]);
+  }, [hasNotifiedEditStart, onStartEditing, setCurrentlyEditing, editable, clearContent, onContentChange]);
 
   const handleClear = useCallback(async () => {
     setCurrentlyEditing(false);
     setHasNotifiedEditStart(false);
-    await editor?.commands.clearContent(true);
+    await editorRef.current?.commands.clearContent(true);
     onContentChange?.('');
     setClearContent(false);
-  }, [editor, onContentChange, setClearContent, setCurrentlyEditing]);
+  }, [onContentChange, setClearContent, setCurrentlyEditing]);
 
   useEffect(() => {
     if (clearContent) {
@@ -92,7 +93,7 @@ const StoryEditor = (props: StoryEditorProps) => {
 
   return (
     <div className="surface">
-      <EditorContent editor={editor} />
+      <EditorContent editor={editorRef.current} />
     </div>
   );
 };
