@@ -689,8 +689,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     </aside>
                     <div className={readingMode ? "reading-mode leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
                     {readingMode && (
-                      <div className="mb-6 flex items-center justify-between px-2">
-                        <span className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Reading Mode</span>
+                      <div className="mb-6 flex justify-center px-2">
                         <span className="text-micro text-[var(--text-faint)] flex items-center gap-4">
                           <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">↑/↓</kbd>
                           <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">j/k</kbd>
