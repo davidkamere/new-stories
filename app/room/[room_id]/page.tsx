@@ -790,6 +790,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                           <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Click</kbd>
                           <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Esc</kbd>
                         </span>
+                        <span className="sr-only">Reading mode navigation: press up arrow or j for previous paragraph, down arrow or k for next paragraph, Home for first, End for last, click a paragraph to select it, Escape to exit reading mode.</span>
                       </div>
                     )}
                       <div className='mt-2 leading-8 text-normal '>
@@ -997,16 +998,18 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                 type="button"
                                 onClick={() => setStartMode('continue')}
                                 className={`btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
+                                aria-label="Continue mode: keep writing in the same paragraph"
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]">↩︎</span>
+                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]" aria-hidden="true">↩︎</span>
                                 <span>Continue</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setStartMode('paragraph')}
                                 className={`btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
+                                aria-label="New paragraph mode: start a fresh line"
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]">¶</span>
+                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]" aria-hidden="true">¶</span>
                                 <span>New paragraph</span>
                             </button>
                             {lockCountdown > 0 && (
