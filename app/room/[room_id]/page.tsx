@@ -680,31 +680,10 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 <div className="mt-6 px-2 flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center space-x-2 md:space-x-3 flex-wrap gap-2">
                         <Link href="/" className="btn btn-ghost text-xs px-2 py-1">←</Link>
-                        <span className="badge badge-muted">
-                            #{story.genre}
-                        </span>
-                        {penName && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setPenDraft(penName)
-                                    setIsPenOpen(true)
-                                }}
-                                className="btn btn-ghost text-xs"
-                            >
-                                Pen name: {penName}
-                            </button>
-                        )}
                     </div>
                     <div className="flex items-center space-x-2">
-                        <button
-                            type="button"
-                            onClick={() => setReadingMode((prev) => !prev)}
-                            className={`btn ${readingMode ? 'btn-primary' : 'btn-secondary'}`}
-                        >
-                            {readingMode ? 'Exit Reading Mode' : 'Reading Mode'}
-                        </button>
-                        <button
+                        {!readingMode && (
+                          <button
                             type="button"
                             disabled={forking}
                             onClick={() => {
@@ -712,14 +691,17 @@ export default function Page({ params }: { params: { room_id: string } }) {
                               setForkName('')
                               setIsForkOpen(true)
                             }}
-                            className="btn btn-secondary"
-                        >
+                            className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
+                          >
+                            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 3v12"/><path d="M18 9v6"/><path d="M6 13a6 6 0 0 0 12 0"/><path d="M18 3a6 6 0 0 1-12 0"/></svg>
                             {forking ? 'Forking…' : 'Fork Story'}
-                        </button>
+                          </button>
+                        )}
                     </div>
                 </div>
-                <div className="mt-4 ink-title text-3xl md:text-5xl px-2">
-                    {story.story_title}
+                <div className="mt-4 px-2">
+                    <h2 className="ink-title text-3xl md:text-5xl">{story.story_title}</h2>
+                    {story.genre && <div className="mt-1 text-micro text-[var(--text-faint)] uppercase tracking-[0.1em]">#{story.genre}</div>}
                 </div>
                 {(() => {
                     const match = story.story_content?.match(/\[forked-from:([^\]]+)\]/)
@@ -733,14 +715,9 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 {!readingMode && (
                     <div className="px-2 mt-3">
                         {lockState === 'self' && (
-                            <span className="badge badge-accent">
-                              <span className="status-dot status-typing mr-1.5" />
+                            <span className="flex items-center gap-1.5 text-small text-[var(--accent)]">
+                              <span className="status-dot status-typing" />
                               Your turn
-                            </span>
-                        )}
-                        {lockState === 'open' && (
-                            <span className="text-small text-[var(--text-muted)]">
-                                Story is open — claim the turn when ready.
                             </span>
                         )}
                         {lockState === 'other' && (
@@ -752,7 +729,32 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 )}
                 <div className="mt-6">
                     <aside>
-                        <details>
+                        {readingMode && (
+                          <div className="mb-4 px-2">
+                            <button
+                              type="button"
+                              onClick={() => setReadingMode(false)}
+                              className="inline-flex items-center gap-1.5 btn btn-primary"
+                            >
+                              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                              Exit Reading Mode
+                            </button>
+                          </div>
+                        )}
+                        {!readingMode && (
+                          <div className="mb-4 px-2">
+                            <button
+                              type="button"
+                              onClick={() => setReadingMode(true)}
+                              className="inline-flex items-center gap-1.5 bg-[var(--selection)] text-[var(--accent)] border-none hover:bg-[var(--accent)] hover:text-white"
+                            >
+                              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                              Reading Mode
+                            </button>
+                          </div>
+                        )}
+                        {!readingMode && (
+                          <details>
                             <summary className="cursor-pointer text-micro uppercase tracking-[0.2em] text-[var(--text-muted)] flex items-center gap-2">
                                 Contributors
                                 <span className="text-[var(--text-faint)]">{getRoomStatus().uniqueAuthors.length}/12</span>
@@ -778,7 +780,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                   )
                                 })}
                             </div>
-                        </details>
+                          </details>
+                        )}
                     </aside>
                     <div className={readingMode ? "reading-mode leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
                     {readingMode && (
@@ -934,24 +937,39 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     Choose a pen name from the main page to write.
                                 </div>
                             ) : lockState === 'self' ? (
-                                <StoryEditor
-                                    story={story}
-                                    setCurrentlyEditing={setCurrentlyEditing}
-                                    clearContent={clearContent}
-                                    setClearContent={setClearContent}
-                                    editable={editable}
-                                    onStartEditing={() => {
-                                        socketRef.current?.send(JSON.stringify({
-                                            type: "start_editing",
-                                            user: penName,
-                                        }))
-                                upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
-                                    }}
-                                    onContentChange={(text) => {
-                                        contentRef.current = text
-                                        setContent(text)
-                                    }}
-                                />
+                                <>
+                                    <StoryEditor
+                                        story={story}
+                                        setCurrentlyEditing={setCurrentlyEditing}
+                                        clearContent={clearContent}
+                                        setClearContent={setClearContent}
+                                        editable={editable}
+                                        onStartEditing={() => {
+                                            socketRef.current?.send(JSON.stringify({
+                                                type: "start_editing",
+                                                user: penName,
+                                            }))
+                                    upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
+                                        }}
+                                        onContentChange={(text) => {
+                                            contentRef.current = text
+                                            setContent(text)
+                                        }}
+                                    />
+                                    <div className="w-full flex justify-start px-2 mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPenDraft(penName)
+                                                setIsPenOpen(true)
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-xs hover:bg-[var(--selection)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+                                        >
+                                            <svg className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                            Pen name: {penName}
+                                        </button>
+                                    </div>
+                                </>
                             ) : lockState === 'open' ? (
                                 socketRef.current?.readyState === 1 ? (
                                     <button
@@ -986,30 +1004,44 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     })()}
                 </div>
                 )}
-                {!readingMode && lockState === 'self' && (
+                {!readingMode && lockState === 'self' && !penName && (
+                    <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setPenDraft('')
+                                setIsPenOpen(true)
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-xs hover:bg-[var(--selection)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
+                        >
+                            <svg className="w-4 h-4 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Set pen name to write
+                        </button>
+                    </div>
+                )}
+                {!readingMode && lockState === 'self' && penName && (
                     <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
                         
                         <div className="text-center text-small text-[var(--text-muted)]">
-                            <span className="font-semibold text-[var(--text)]">Continue</span> keeps you in the same paragraph.{" "}
-                            <span className="font-semibold text-[var(--text)]">New paragraph</span> starts a fresh line.
+                            Same paragraph, or start fresh?
                         </div>
                         <div className="flex items-center justify-center space-x-3">
                             <button
                                 type="button"
                                 onClick={() => setStartMode('continue')}
-                                className={`btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
+                                className={`inline-flex items-center gap-1.5 btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
                                 aria-label="Continue mode: keep writing in the same paragraph"
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]" aria-hidden="true">↩︎</span>
+                                <span className="text-base" aria-hidden="true">↩︎</span>
                                 <span>Continue</span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setStartMode('paragraph')}
-                                className={`btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
+                                className={`inline-flex items-center gap-1.5 btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
                                 aria-label="New paragraph mode: start a fresh line"
                             >
-                                <span className="text-xs px-2 py-0.5 border border-[var(--border)]" aria-hidden="true">¶</span>
+                                <span className="text-base" aria-hidden="true">¶</span>
                                 <span>New paragraph</span>
                             </button>
                             {lockCountdown > 0 && (
