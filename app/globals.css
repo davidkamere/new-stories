@@ -384,3 +384,34 @@ a:focus-visible {
   white-space: nowrap;
   border: 0;
 }
+/* Details/Summary - prevent layout shift on open */
+details {
+  width: 100%;
+  max-width: 100%;
+}
+details summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+details summary::-webkit-details-marker {
+  display: none;
+}
+details summary::after {
+  content: '▼';
+  font-size: 0.625rem;
+  transition: transform 0.2s ease;
+  color: var(--text-faint);
+}
+details[open] summary::after {
+  transform: rotate(180deg);
+}
+details[open] {
+  outline: none;
+}
+details > div {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
