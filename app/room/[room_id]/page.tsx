@@ -746,15 +746,30 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 <div className="mt-6">
                     <aside>
                         <details>
-                            <summary className="cursor-pointer text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                Contributors ({getRoomStatus().uniqueAuthors.length})
+                            <summary className="cursor-pointer text-micro uppercase tracking-[0.2em] text-[var(--text-muted)] flex items-center gap-2">
+                                Contributors
+                                <span className="text-[var(--text-faint)]">{getRoomStatus().uniqueAuthors.length}/12</span>
                             </summary>
                             <div className="mt-4 flex flex-wrap gap-2">
-                                {getRoomStatus().uniqueAuthors.map((name) => (
-                                  <span key={name} className="contributor-mark badge badge-muted">
-                                    {name}
-                                  </span>
-                                ))}
+                                {getRoomStatus().uniqueAuthors.map((name) => {
+                                  const authorColor = colorForAuthor(name)
+                                  return (
+                                    <button
+                                      key={name}
+                                      onMouseEnter={() => setHoverAuthor(name)}
+                                      onMouseLeave={() => setHoverAuthor(null)}
+                                      className="contributor-mark badge badge-muted flex items-center gap-2"
+                                      style={{ borderColor: authorColor.base }}
+                                    >
+                                      <span
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ background: authorColor.base }}
+                                        aria-hidden="true"
+                                      />
+                                      {name}
+                                    </button>
+                                  )
+                                })}
                             </div>
                         </details>
                     </aside>
