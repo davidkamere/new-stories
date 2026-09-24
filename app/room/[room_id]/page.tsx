@@ -58,6 +58,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const [currentParagraphIdx, setCurrentParagraphIdx] = useState<number>(0)
     const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([])
     const [forking, setForking] = useState<boolean>(false)
+    const [saving, setSaving] = useState<boolean>(false)
     const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const LOCK_TIMEOUT_MS = 60000
 
@@ -426,51 +427,57 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
     // open up the room for others to edit
     const saveEdits = async () => {
-        const draft = contentRef.current.trim()
-        if (!draft) {
-            closeModal()
-            return
-        }
-        const { isRoomFull, isContributor } = getRoomStatus()
-        if (isRoomFull && !isContributor) {
-            setSaveError('This story already has 12 contributors. You can read, but new contributors cannot add.')
-            closeModal()
-            return
-        }
-        console.log('Saving draft length:', draft.length)
-        const header = `[pen:${penName || 'Anonymous'}|mode:${startMode}|at:${new Date().toISOString()}]`
-        const normalizedDraft = draft.replace(/\s*\n\s*/g, ' ').trim()
-        if (startMode === 'continue') {
-            // Append inline to the existing paragraph
-            const updatedContent = `${story.story_content.trimEnd()} ${header} ${normalizedDraft}`
-            const result = await saveContributionToDB(updatedContent)
-            if (result?.error) {
-                setSaveError(result.error.message)
+        if (saving) return
+        setSaving(true)
+        try {
+            const draft = contentRef.current.trim()
+            if (!draft) {
+                closeModal()
                 return
             }
-            console.log('Save successful')
-            setSaveError('')
-            setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
-        } else {
-            const updatedContent = `${story.story_content.trimEnd()}\n\n${header}\n${normalizedDraft}`
-            const result = await saveContributionToDB(updatedContent)
-            if (result?.error) {
-                setSaveError(result.error.message)
+            const { isRoomFull, isContributor } = getRoomStatus()
+            if (isRoomFull && !isContributor) {
+                setSaveError('This story already has 12 contributors. You can read, but new contributors cannot add.')
+                closeModal()
                 return
             }
-            console.log('Save successful')
-            setSaveError('')
-            setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
+            console.log('Saving draft length:', draft.length)
+            const header = `[pen:${penName || 'Anonymous'}|mode:${startMode}|at:${new Date().toISOString()}]`
+            const normalizedDraft = draft.replace(/\s*\n\s*/g, ' ').trim()
+            if (startMode === 'continue') {
+                // Append inline to the existing paragraph
+                const updatedContent = `${story.story_content.trimEnd()} ${header} ${normalizedDraft}`
+                const result = await saveContributionToDB(updatedContent)
+                if (result?.error) {
+                    setSaveError(result.error.message)
+                    return
+                }
+                console.log('Save successful')
+                setSaveError('')
+                setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
+            } else {
+                const updatedContent = `${story.story_content.trimEnd()}\n\n${header}\n${normalizedDraft}`
+                const result = await saveContributionToDB(updatedContent)
+                if (result?.error) {
+                    setSaveError(result.error.message)
+                    return
+                }
+                console.log('Save successful')
+                setSaveError('')
+                setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
+            }
+            setClearContent(true)
+            socketRef.current?.send(JSON.stringify({
+                type: "stop_editing",
+                user: penName,
+            }))
+            upsertStatus(room_id, `Active:${new Date().toISOString()}`)
+            
+            closeModal()
+            // socket.emit('saveEdits', {room_id: room_id})
+        } finally {
+            setSaving(false)
         }
-        setClearContent(true)
-        socketRef.current?.send(JSON.stringify({
-            type: "stop_editing",
-            user: penName,
-        }))
-        upsertStatus(room_id, `Active:${new Date().toISOString()}`)
-        
-        closeModal()
-        // socket.emit('saveEdits', {room_id: room_id})
     }
 
     const deleteEdits = () => {
@@ -519,8 +526,9 @@ export default function Page({ params }: { params: { room_id: string } }) {
                 <button
                   type="submit"
                   className="btn btn-primary"
+                  disabled={saving}
                 >
-                  Add to Story
+                  {saving ? 'Adding…' : 'Add to Story'}
                 </button>
               </div>
             </div>
