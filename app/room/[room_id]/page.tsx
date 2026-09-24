@@ -882,20 +882,9 @@ export default function Page({ params }: { params: { room_id: string } }) {
                     })()}
                 </div>
                 )}
-                {!readingMode && lockState === 'self' && content.trim().length === 0 && lockCountdown > 0 && (
-                    <div className="text-[var(--text-muted)] flex text-small justify-center px-2 transform transition ease-in">
-                        Start typing within{" "}
-                        <span className="text-[var(--text)] font-semibold px-1">
-                            {lockCountdown}s
-                        </span>{" "}
-                        to keep the turn.
-                    </div>
-                )}
                 {!readingMode && lockState === 'self' && (
                     <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
-                        <div className="text-center text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                            Start mode
-                        </div>
+                        
                         <div className="text-center text-small text-[var(--text-muted)]">
                             <span className="font-semibold text-[var(--text)]">Continue</span> keeps you in the same paragraph.{" "}
                             <span className="font-semibold text-[var(--text)]">New paragraph</span> starts a fresh line.
@@ -919,13 +908,12 @@ export default function Page({ params }: { params: { room_id: string } }) {
                             </button>
                             {lockCountdown > 0 && (
                                 <div
-                                    className="h-10 w-10 border border-[var(--text)] flex items-center justify-center text-micro text-[var(--text)]"
+                                    className="h-10 w-10 border border-[var(--text)] rounded-full"
                                     style={{
-                                        background: `conic-gradient(var(--text-muted) ${Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360)}deg, var(--border) 0deg)`
+                                        background: "conic-gradient(var(--text-muted) " + Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360) + "deg, var(--border) 0deg)"
                                     }}
-                                >
-                                    {lockCountdown}
-                                </div>
+                                    aria-label={"Time remaining: " + lockCountdown + " seconds"}
+                                ></div>
                             )}
                         </div>
                     </div>
