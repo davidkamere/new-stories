@@ -160,6 +160,18 @@ export default function Page({ params }: { params: { room_id: string } }) {
         getStoryfromDB()
     }, [getStoryfromDB])
 
+    const colorForAuthor = (name: string) => {
+        let hash = 0
+        for (let i = 0; i < name.length; i++) {
+            hash = (hash * 31 + name.charCodeAt(i)) | 0
+        }
+        const hue = Math.abs(hash) % 360
+        return {
+            base: `hsl(${hue}, 70%, 45%)`,
+            bg: `hsla(${hue}, 85%, 75%, 0.35)`
+        }
+    }
+
     const parseStoryContent = (raw: string) => {
         if (!raw) return []
         const cleaned = raw.replace(/\[forked-from:[^\]]+\]/g, '')
@@ -704,8 +716,10 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                                 onClick={() => readingMode && setCurrentParagraphIdx(pIdx)}
                                             >
                                                 {para.map((seg: any, sIdx: number) => {
-                                                    const isHighlighted = hoverAuthor === seg.author || (highlightOwn && penName && seg.author === penName)
+                                                    const isHoverHighlighted = hoverAuthor === seg.author
+                                                    const isOwnHighlighted = highlightOwn && penName && seg.author === penName
                                                     const isCurrentLine = readingMode && isCurrentParagraph && sIdx === para.length - 1
+                                                    const authorColor = colorForAuthor(seg.author)
                                                     return (
                                                         <span
                                                             key={`${seg.author}-${pIdx}-${sIdx}`}
@@ -714,7 +728,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                                             className="group relative whitespace-pre-wrap py-0.5 rounded"
                                                             style={{
                                                                 background: isCurrentLine ? 'var(--focus-line)'
-                                                                  : isHighlighted ? 'var(--selection)'
+                                                                  : isHoverHighlighted ? authorColor.bg
+                                                                  : isOwnHighlighted ? 'var(--selection)'
                                                                   : 'transparent'
                                                             }}
                                                             title={seg.author}
