@@ -64,6 +64,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
     const [isOpen, setIsOpen] = useState(false)
     const [saveError, setSaveError] = useState<string>('')
+    const [forkError, setForkError] = useState<string>('')
     const [isForkOpen, setIsForkOpen] = useState(false)
     const [forkName, setForkName] = useState<string>('')
     const [isPenOpen, setIsPenOpen] = useState(false)
@@ -79,6 +80,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const closeForkModal = () => {
         setIsForkOpen(false)
         setForkName('')
+        setForkError('')
     }
     const closePenModal = () => {
         setIsPenOpen(false)
@@ -607,6 +609,11 @@ export default function Page({ params }: { params: { room_id: string } }) {
               </p>
             </div>
             <div className="sheet-content">
+              {forkError && (
+                <div className="mb-4 text-sm text-[var(--accent)]" role="alert">
+                  {forkError}
+                </div>
+              )}
               <input
                 type="text"
                 placeholder={`${story.story_title} (Fork)`}
