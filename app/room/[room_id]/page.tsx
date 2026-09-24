@@ -313,51 +313,54 @@ export default function Page({ params }: { params: { room_id: string } }) {
         }
     }, [room_id, supabase])
 
+    // Effect 1: Start/clear the lock-release timeout (runs only when lockState/content change)
     useEffect(() => {
-        let intervalId: ReturnType<typeof setInterval> | null = null
-
-        // If user has the lock but hasn't typed anything, start a timeout to release it.
         if (lockState === 'self' && content.trim().length === 0) {
             if (!lockTimeoutRef.current) {
-                lockCountdown === 0 && setLockCountdown(LOCK_TIMEOUT_MS / 1000)
+                setLockCountdown(LOCK_TIMEOUT_MS / 1000)
                 lockTimeoutRef.current = setTimeout(() => {
                     // Re-check conditions before releasing
-                        if (lockState === 'self' && contentRef.current.trim().length === 0) {
-                            socketRef.current?.send(JSON.stringify({
-                                type: "stop_editing",
-                                user: penName,
-                            }))
-                            upsertStatus(room_id, 'Idle')
-                        }
+                    if (lockState === 'self' && contentRef.current.trim().length === 0) {
+                        socketRef.current?.send(JSON.stringify({
+                            type: "stop_editing",
+                            user: penName,
+                        }))
+                        upsertStatus(room_id, 'Idle')
+                    }
                     lockTimeoutRef.current = null
                     setLockCountdown(0)
                 }, LOCK_TIMEOUT_MS)
             }
+        } else {
+            if (lockTimeoutRef.current) {
+                clearTimeout(lockTimeoutRef.current)
+                lockTimeoutRef.current = null
+            }
+            setLockCountdown(0)
+        }
 
+        return () => {
+            if (lockTimeoutRef.current) {
+                clearTimeout(lockTimeoutRef.current)
+                lockTimeoutRef.current = null
+            }
+        }
+    }, [lockState, content, penName, room_id])
+
+    // Effect 2: Visual countdown tick (runs only when lockState changes)
+    useEffect(() => {
+        let intervalId: ReturnType<typeof setInterval> | null = null
+
+        if (lockState === 'self' && content.trim().length === 0) {
             intervalId = setInterval(() => {
                 setLockCountdown((prev) => (prev > 0 ? prev - 1 : 0))
             }, 1000)
         }
 
-        // Clear timeout once user types or loses lock
-        if (lockState !== 'self' || content.trim().length > 0) {
-            if (lockTimeoutRef.current) {
-                clearTimeout(lockTimeoutRef.current)
-                lockTimeoutRef.current = null
-            }
-            if (intervalId) {
-                clearInterval(intervalId)
-                intervalId = null
-            }
-            if (lockCountdown !== 0) {
-                setLockCountdown(0)
-            }
-        }
-
         return () => {
             if (intervalId) clearInterval(intervalId)
         }
-    }, [lockState, content, penName, lockCountdown, room_id])
+    }, [lockState, content])
 
   // Reading mode keyboard navigation
   useEffect(() => {
