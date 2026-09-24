@@ -168,6 +168,14 @@ const ForkIcon = () => (
   </svg>
 )
 
+const ThreeDotsIcon = () => (
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+    <circle cx="5" cy="12" r="1" />
+  </svg>
+)
+
 /* -------------------------------------------------------------------------- */
 /*  Page                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -649,26 +657,48 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
       {/* Single column: every block below shares the same left and right edge */}
       <main className="mx-auto w-full max-w-3xl px-5 sm:px-8 pt-6 pb-24 flex flex-col gap-8">
-        {/* Toolbar */}
-        <nav className="flex items-center justify-between gap-4">
-          <Link href="/" className="btn btn-ghost text-xs" aria-label="Back to all stories">
-            ←
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setReadingMode((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
-            >
-              <BookIcon />
-              {readingMode ? 'Exit reading mode' : 'Reading mode'}
-            </button>
-          </div>
+        {/* Toolbar - reading mode on left */}
+        <nav className="flex items-center justify-start gap-4">
+          <button
+            type="button"
+            onClick={() => setReadingMode((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
+          >
+            <BookIcon />
+            {readingMode ? 'Exit reading mode' : 'Reading mode'}
+          </button>
         </nav>
 
-        {/* Title block */}
+        {/* Title block with actions menu */}
         <header className="flex flex-col gap-2">
-          <h1 className="ink-title text-3xl md:text-5xl">{story.story_title}</h1>
+          <div className="flex items-center justify-between gap-4">
+            <h1 className="ink-title text-3xl md:text-5xl">{story.story_title}</h1>
+            <div className="relative group" role="menu" aria-label="Story actions">
+              <button
+                type="button"
+                className="btn btn-ghost text-xs p-2 rounded-full"
+                aria-label="Story actions"
+                aria-expanded="false"
+                onClick={() => {/* handled by CSS hover */}}
+              >
+                <ThreeDotsIcon />
+              </button>
+              <div className="absolute right-0 mt-2 w-48 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
+                <button
+                  type="button"
+                  disabled={forking}
+                  onClick={() => {
+                    setForkName('')
+                    setIsForkOpen(true)
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[var(--selection)] hover:text-[var(--accent)]"
+                >
+                  <ForkIcon />
+                  Fork story
+                </button>
+              </div>
+            </div>
+          </div>
           {(story.genre || forkedFrom) && (
             <div className="flex flex-col gap-1 text-small text-[var(--text-muted)] pl-2">
               {story.genre && <span className="text-[var(--text-faint)]">#{story.genre}</span>}
@@ -729,7 +759,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
           }
         >
           {readingMode && (
-            <div className="mb-8 flex items-center gap-4 text-micro text-[var(--text-faint)]">
+            <div className="mb-2 flex items-center gap-4 text-micro text-[var(--text-faint)]">
               <kbd className={kbdClass}>↑/↓</kbd>
               <kbd className={kbdClass}>j/k</kbd>
               <kbd className={kbdClass}>Home/End</kbd>
@@ -796,24 +826,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
             )
           })}
         </article>
-
-        {/* Fork button above writing area (right aligned) */}
-        {!readingMode && (
-          <div className="flex justify-end pr-2 sm:pr-4 md:pr-6 lg:pr-8">
-            <button
-              type="button"
-              disabled={forking}
-              onClick={() => {
-                setForkName('')
-                setIsForkOpen(true)
-              }}
-              className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
-            >
-              <ForkIcon />
-              {forking ? 'Forking…' : 'Fork story'}
-            </button>
-          </div>
-        )}
 
         {/* Writing area */}
         {!readingMode && !readOnly && (
