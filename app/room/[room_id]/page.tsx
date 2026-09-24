@@ -53,7 +53,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const [penName, setPenName] = useState<string>('')
     const [hoverAuthor, setHoverAuthor] = useState<string | null>(null)
     const [startMode, setStartMode] = useState<'continue' | 'paragraph'>('continue')
-    const [highlightOwn, setHighlightOwn] = useState<boolean>(true)
     const [readingMode, setReadingMode] = useState<boolean>(false)
     const [currentParagraphIdx, setCurrentParagraphIdx] = useState<number>(0)
     const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([])
@@ -746,7 +745,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                             <button
                               type="button"
                               onClick={() => setReadingMode(true)}
-                              className="inline-flex items-center gap-1.5 bg-[var(--selection)] text-[var(--accent)] border-none hover:bg-[var(--accent)] hover:text-white"
+                              className="inline-flex items-center gap-1.5 btn btn-primary"
                             >
                               <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                               Reading Mode
@@ -839,7 +838,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                                 )}
                                                 {para.map((seg: any, sIdx: number) => {
                                                     const isHoverHighlighted = hoverAuthor === seg.author
-                                                    const isOwnHighlighted = highlightOwn && penName && seg.author === penName
                                                     const isCurrentLine = readingMode && isCurrentParagraph && sIdx === para.length - 1
                                                     const authorColor = colorForAuthor(seg.author)
                                                     return (
@@ -851,7 +849,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                                             style={{
                                                                 background: isCurrentLine ? 'var(--focus-line)'
                                                                   : isHoverHighlighted ? authorColor.bg
-                                                                  : isOwnHighlighted ? 'var(--selection)'
                                                                   : 'transparent'
                                                             }}
                                                             title={seg.author}
@@ -906,22 +903,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
                   </div>
                 {!readingMode && (
                 <div className="mt-8 mb-4 px-2 relative">
-                    {lockState === 'self' && content.trim().length > 0 && (
-                        <div className="mb-3 flex items-center space-x-3">
-                            <span className="badge" style={{ background: 'var(--selection)', color: 'var(--accent)', borderColor: 'var(--accent)' }}>
-                                You are the only one writing right now.
-                            </span>
-                            <label className="flex items-center space-x-2 cursor-pointer text-small text-[var(--text-muted)]">
-                                <input
-                                    type="checkbox"
-                                    checked={highlightOwn}
-                                    onChange={(e) => setHighlightOwn(e.target.checked)}
-                                    className="accent-[var(--accent)]"
-                                />
-                                <span>Highlight my contributions</span>
-                            </label>
-                        </div>
-                    )}
                     {(() => {
                         const { isContributor, isRoomFull } = getRoomStatus()
                         if (isRoomFull && !isContributor) {
@@ -956,7 +937,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                             setContent(text)
                                         }}
                                     />
-                                    <div className="w-full flex justify-start px-2 mt-3">
+                                    <div className="w-full flex justify-between items-center px-2 mt-3">
                                         <button
                                             type="button"
                                             onClick={() => {
@@ -968,6 +949,15 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                             <svg className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                             Pen name: {penName}
                                         </button>
+                                        {lockCountdown > 0 && (
+                                            <div
+                                                className="h-7 w-7 border border-[var(--text)] rounded-full shrink-0"
+                                                style={{
+                                                    background: "conic-gradient(var(--text-muted) " + Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360) + "deg, var(--border) 0deg)"
+                                                }}
+                                                aria-label={"Time remaining: " + lockCountdown + " seconds"}
+                                            ></div>
+                                        )}
                                     </div>
                                 </>
                             ) : lockState === 'open' ? (
@@ -1044,15 +1034,6 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                 <span className="text-base" aria-hidden="true">¶</span>
                                 <span>New paragraph</span>
                             </button>
-                            {lockCountdown > 0 && (
-                                <div
-                                    className="h-10 w-10 border border-[var(--text)] rounded-full"
-                                    style={{
-                                        background: "conic-gradient(var(--text-muted) " + Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360) + "deg, var(--border) 0deg)"
-                                    }}
-                                    aria-label={"Time remaining: " + lockCountdown + " seconds"}
-                                ></div>
-                            )}
                         </div>
                     </div>
                 )}
