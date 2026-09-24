@@ -362,6 +362,13 @@ export default function Page({ params }: { params: { room_id: string } }) {
         }
     }, [lockState, content])
 
+  // Clear typing status when lock is released (user stops editing without submitting)
+  useEffect(() => {
+    if (lockState !== 'self' && content.trim().length === 0) {
+      upsertStatus(room_id, 'Idle')
+    }
+  }, [lockState, content, penName, room_id])
+
   // Reading mode keyboard navigation
   useEffect(() => {
     if (!readingMode) return
@@ -842,21 +849,23 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     }}
                                 />
                             ) : lockState === 'open' ? (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const name = penName.trim()
-                                        if (!name) return
-                                        socketRef.current?.send(JSON.stringify({
-                                            type: "start_editing",
-                                            user: name,
-                                        }))
-                                upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
-                                    }}
-                                    className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)] hover:bg-[var(--bg)] transition-colors border border-[var(--success)]"
-                                >
-                                    Tap to start writing
-                                </button>
+                                socketRef.current?.readyState === 1 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const name = penName.trim()
+                                            if (!name) return
+                                            socketRef.current?.send(JSON.stringify({
+                                                type: "start_editing",
+                                                user: name,
+                                            }))
+                                    upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
+                                        }}
+                                        className="flex items-center justify-center text-sm font-medium min-h-40 w-full text-[var(--success)] border-2 border-[var(--success)] bg-transparent hover:border-[var(--success)] hover:bg-[var(--success)]/10 hover:scale-[1.02] rounded-xl transition-all duration-200"
+                                    >
+                                        Tap to start writing
+                                    </button>
+                                ) : null
                             ) : (
                                 <div className="surface flex items-center justify-center text-sm min-h-40 border border-[var(--border)]">
                                     <div className="flex flex-col items-center space-y-3 text-[var(--text-muted)]">
