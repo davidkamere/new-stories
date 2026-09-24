@@ -423,6 +423,59 @@ export default function Page({ params }: { params: { room_id: string } }) {
     }
   }, [currentParagraphIdx, readingMode])
 
+  // Reading mode swipe navigation (mobile)
+  useEffect(() => {
+    if (!readingMode) return
+
+    let startY = 0
+    let startX = 0
+
+    const handleTouchStart = (e: TouchEvent) => {
+      startY = e.touches[0].clientY
+      startX = e.touches[0].clientX
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const endY = e.changedTouches[0].clientY
+      const endX = e.changedTouches[0].clientX
+      const deltaY = startY - endY
+      const deltaX = Math.abs(startX - endX)
+
+      // Only trigger on vertical swipes with sufficient distance and not horizontal
+      if (Math.abs(deltaY) > 50 && deltaX < 50) {
+        const { segments } = getRoomStatus()
+        let paragraphCount = 0
+        let current: Array<any> = []
+        segments.forEach((seg: any) => {
+          if (seg.mode === 'paragraph') {
+            if (current.length > 0) paragraphCount++
+            current = [seg]
+          } else {
+            if (current.length === 0) current = [seg]
+            else current.push(seg)
+          }
+        })
+        if (current.length > 0) paragraphCount++
+
+        if (paragraphCount === 0) return
+
+        // Swipe up = next paragraph, swipe down = previous paragraph
+        if (deltaY > 0) {
+          setCurrentParagraphIdx((prev) => Math.min(prev + 1, paragraphCount - 1))
+        } else {
+          setCurrentParagraphIdx((prev) => Math.max(prev - 1, 0))
+        }
+      }
+    }
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true })
+    window.addEventListener('touchend', handleTouchEnd, { passive: true })
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [readingMode, getRoomStatus])
+
     const saveContributionToDB = async (content: string) => {
         const { data, error } = await supabase
             .from('Rooms')
@@ -744,8 +797,8 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                     return paragraphs.map((para, pIdx) => {
                                         const isCurrentParagraph = readingMode && pIdx === currentParagraphIdx
                                         const paragraphStyle = readingMode && !isCurrentParagraph
-                                            ? { opacity: 0.45 }
-                                            : {}
+                                            ? { opacity: 0.45, transition: 'opacity 200ms ease' }
+                                            : { transition: 'opacity 200ms ease' }
 
                                         return (
                                             <p
@@ -796,6 +849,34 @@ export default function Page({ params }: { params: { room_id: string } }) {
                       })()}
                       </div>
                     </div>
+                    {readingMode && (
+                      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10" role="navigation" aria-label="Paragraph navigation">
+                        {(() => {
+                          const { segments } = getRoomStatus()
+                          let paragraphCount = 0
+                          let current: Array<any> = []
+                          segments.forEach((seg: any) => {
+                            if (seg.mode === 'paragraph') {
+                              if (current.length > 0) paragraphCount++
+                              current = [seg]
+                            } else {
+                              if (current.length === 0) current = [seg]
+                              else current.push(seg)
+                            }
+                          })
+                          if (current.length > 0) paragraphCount++
+                          return Array.from({ length: paragraphCount }, (_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setCurrentParagraphIdx(i)}
+                              className={`w-2 h-2 rounded-full transition-all ${i === currentParagraphIdx ? 'bg-[var(--text)]' : 'bg-[var(--text-faint)] hover:bg-[var(--text-muted)]'}`}
+                              aria-label={"Go to paragraph " + (i + 1)}
+                              aria-current={i === currentParagraphIdx ? 'true' : 'false'}
+                            />
+                          ))
+                        })()}
+                      </div>
+                    )}
                   </div>
                 {!readingMode && (
                 <div className="mt-8 mb-4 px-2 relative">
