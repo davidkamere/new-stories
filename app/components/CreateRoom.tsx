@@ -16,12 +16,15 @@ const modalStyles = {
     left: '50%',
     right: 'auto',
     bottom: 'auto',
-    marginRight: '-50%',
     transform: 'translate(-50%, -50%)',
     background: 'transparent',
     border: 'none',
     padding: 0,
     zIndex: 61,
+    width: '90%',
+    maxWidth: '32rem',
+    maxHeight: '90vh',
+    overflow: 'auto',
   },
 };
 

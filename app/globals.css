@@ -338,7 +338,7 @@ a:focus-visible {
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(45, 43, 40, 0.15);
   max-width: 32rem;
-  width: 90%;
+  width: 100%;
 }
 
 .sheet-header {
