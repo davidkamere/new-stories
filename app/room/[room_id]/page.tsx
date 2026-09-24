@@ -1,23 +1,28 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import Modal from 'react-modal'
+import { motion } from 'framer-motion'
 
-import StoryEditor from "@/app/components/StoryEditor"
-import Header from "@/app/components/Header"
+import StoryEditor from '@/app/components/StoryEditor'
+import Header from '@/app/components/Header'
+import { setUpSocket } from '@/utils/socket'
+import { supabaseClient } from '@/utils/db/supabase'
+import { getStory, upsertStatus, createNewRoom } from '@/utils/db/actions'
 
+/* -------------------------------------------------------------------------- */
+/*  Layout system                                                              */
+/*  One column, one left edge. Spacing steps: 2 / 4 / 8 (Tailwind units).      */
+/* -------------------------------------------------------------------------- */
 
-import { setUpSocket } from "@/utils/socket"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { supabaseClient } from "@/utils/db/supabase"
-import { getStory, upsertStatus, createNewRoom } from "@/utils/db/actions"
-
-import { motion } from "framer-motion"
-
-
-import Modal from 'react-modal';
-
-
+const LOCK_TIMEOUT_MS = 60000
+const MAX_CONTRIBUTORS = 12
+const kbdClass =
+  'px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]'
+const penButtonClass =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-xs hover:bg-[var(--selection)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all'
 
 const modalStyles = {
   overlay: {
@@ -37,54 +42,210 @@ const modalStyles = {
     padding: 0,
     zIndex: 61,
   },
-};
+}
+
+type Mode = 'continue' | 'paragraph'
+type LockState = 'open' | 'self' | 'other'
+type Segment = { author: string; text: string; mode: Mode; at?: string }
+
+/* -------------------------------------------------------------------------- */
+/*  Pure helpers                                                               */
+/* -------------------------------------------------------------------------- */
+
+const colorForAuthor = (name: string) => {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0
+  }
+  const hue = Math.abs(hash) % 360
+  return {
+    base: `hsl(${hue}, 70%, 45%)`,
+    bg: `hsla(${hue}, 85%, 75%, 0.35)`,
+  }
+}
+
+const parseStoryContent = (raw: string): Segment[] => {
+  if (!raw) return []
+  const cleaned = raw.replace(/\[forked-from:[^\]]+\]/g, '')
+  const parsed: Segment[] = []
+  const regex = /\[pen:([^|\]]+)(?:\|mode:(continue|paragraph))?(?:\|at:([^\]]+))?\]/g
+  let match: RegExpExecArray | null
+  let lastIndex = 0
+  let lastAuthor = 'Unknown'
+  let lastMode: Mode = 'continue'
+  let lastAt: string | undefined
+
+  while ((match = regex.exec(cleaned)) !== null) {
+    const before = cleaned.slice(lastIndex, match.index).trim()
+    if (before) parsed.push({ author: lastAuthor, text: before, mode: lastMode, at: lastAt })
+    lastAuthor = match[1].trim()
+    lastMode = (match[2] as Mode | undefined) || 'continue'
+    lastAt = match[3]
+    lastIndex = regex.lastIndex
+  }
+
+  const tail = cleaned.slice(lastIndex).trim()
+  if (tail) parsed.push({ author: lastAuthor, text: tail, mode: lastMode, at: lastAt })
+  return parsed
+}
+
+const groupParagraphs = (segments: Segment[]): Segment[][] => {
+  const paragraphs: Segment[][] = []
+  let current: Segment[] = []
+  segments.forEach((seg) => {
+    if (seg.mode === 'paragraph' && current.length > 0) {
+      paragraphs.push(current)
+      current = []
+    }
+    current.push(seg)
+  })
+  if (current.length > 0) paragraphs.push(current)
+  return paragraphs
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Small building blocks                                                      */
+/* -------------------------------------------------------------------------- */
+
+function Sheet({
+  isOpen,
+  onClose,
+  label,
+  title,
+  description,
+  onSubmit,
+  children,
+  actions,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  label: string
+  title: string
+  description: string
+  onSubmit: (e: React.FormEvent) => void
+  children?: React.ReactNode
+  actions: React.ReactNode
+}) {
+  return (
+    <Modal isOpen={isOpen} onRequestClose={onClose} style={modalStyles} contentLabel={label}>
+      <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={onSubmit}>
+        <div className="sheet-header">
+          <p className="text-micro text-[var(--text-muted)]">{label}</p>
+          <h2 className="ink-title text-2xl mt-1">{title}</h2>
+          <p className="text-small text-[var(--text-muted)] mt-1">{description}</p>
+        </div>
+        <div className="sheet-content flex flex-col gap-4">
+          {children}
+          <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-4 border-t border-[var(--border)]">
+            {actions}
+          </div>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+const PenIcon = () => (
+  <svg className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+)
+
+const BookIcon = () => (
+  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>
+)
+
+const ForkIcon = () => (
+  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <path d="M6 3v12" />
+    <path d="M18 9v6" />
+    <path d="M6 13a6 6 0 0 0 12 0" />
+    <path d="M18 3a6 6 0 0 1-12 0" />
+  </svg>
+)
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function Page({ params }: { params: { room_id: string } }) {
-    
-    const [story, setStory] = useState<any>([])
-    const [editable, setEditable] = useState<boolean>(false)
-    const [lockState, setLockState] = useState<'open' | 'self' | 'other'>('open')
-    const [currentlyEditing, setCurrentlyEditing] = useState<boolean>(false)
-    const [clearContent, setClearContent] = useState<boolean>(false)
+  const room_id = params.room_id
+  const router = useRouter()
+  const supabase = supabaseClient
 
-    const [content, setContent] = useState<string>('')
-    const [lockCountdown, setLockCountdown] = useState<number>(0)
-    const contentRef = useRef<string>('')
-    const [penName, setPenName] = useState<string>('')
-    const [hoverAuthor, setHoverAuthor] = useState<string | null>(null)
-    const [startMode, setStartMode] = useState<'continue' | 'paragraph'>('continue')
-    const [readingMode, setReadingMode] = useState<boolean>(false)
-    const [currentParagraphIdx, setCurrentParagraphIdx] = useState<number>(0)
-    const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([])
-    const [forking, setForking] = useState<boolean>(false)
-    const [saving, setSaving] = useState<boolean>(false)
-    const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const LOCK_TIMEOUT_MS = 60000
+  // Story + editing state
+  const [story, setStory] = useState<any>({})
+  const [editable, setEditable] = useState(false)
+  const [lockState, setLockState] = useState<LockState>('open')
+  const [, setCurrentlyEditing] = useState(false)
+  const [clearContent, setClearContent] = useState(false)
+  const [content, setContent] = useState('')
+  const [lockCountdown, setLockCountdown] = useState(0)
+  const [penName, setPenName] = useState('')
+  const [startMode, setStartMode] = useState<Mode>('continue')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
-    const [isOpen, setIsOpen] = useState(false)
-    const [saveError, setSaveError] = useState<string>('')
-    const [forkError, setForkError] = useState<string>('')
-    const [isForkOpen, setIsForkOpen] = useState(false)
-    const [forkName, setForkName] = useState<string>('')
-    const [isPenOpen, setIsPenOpen] = useState(false)
-    const [penDraft, setPenDraft] = useState<string>('')
+  // Reading mode
+  const [readingMode, setReadingMode] = useState(false)
+  const [currentParagraphIdx, setCurrentParagraphIdx] = useState(0)
+  const [hoverAuthor, setHoverAuthor] = useState<string | null>(null)
 
-    const handleOpenModal = () => {
-        setIsOpen(true );
-    }
+  // Modals
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isForkOpen, setIsForkOpen] = useState(false)
+  const [isPenOpen, setIsPenOpen] = useState(false)
+  const [forkName, setForkName] = useState('')
+  const [forkError] = useState('')
+  const [forking, setForking] = useState(false)
+  const [penDraft, setPenDraft] = useState('')
 
-    const closeModal = () => {
-        setIsOpen(false);
+  // Refs
+  const socketRef = useRef<any>(null)
+  const lockStateRef = useRef<LockState>('open')
+  const penNameRef = useRef('')
+  const contentRef = useRef('')
+  const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([])
+  const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /* ------------------------------ Derived data ----------------------------- */
+
+  const { segments, uniqueAuthors, isContributor, isRoomFull } = useMemo(() => {
+    const segs = parseStoryContent(story.story_content || '')
+    const authors = Array.from(new Set(segs.map((s) => s.author)))
+    return {
+      segments: segs,
+      uniqueAuthors: authors,
+      isContributor: !!penName && authors.includes(penName),
+      isRoomFull: authors.length >= MAX_CONTRIBUTORS,
     }
-    const closeForkModal = () => {
-        setIsForkOpen(false)
-        setForkName('')
-        setForkError('')
-    }
-    const closePenModal = () => {
-        setIsPenOpen(false)
-        setPenDraft('')
-    }
+  }, [story.story_content, penName])
+
+  const paragraphs = useMemo(() => groupParagraphs(segments), [segments])
+  const paragraphCount = paragraphs.length
+  const forkedFrom = story.story_content?.match(/\[forked-from:([^\]]+)\]/)?.[1]?.trim()
+  const readOnly = isRoomFull && !isContributor
+
+  /* ------------------------------ Modal actions ---------------------------- */
+
+  const closeForkModal = () => {
+    setIsForkOpen(false)
+    setForkName('')
+  }
+
+  const closePenModal = () => {
+    setIsPenOpen(false)
+    setPenDraft('')
+  }
+
+  const openPenModal = (draft: string) => {
+    setPenDraft(draft)
+    setIsPenOpen(true)
+  }
 
   const handleForkSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,16 +255,11 @@ export default function Page({ params }: { params: { room_id: string } }) {
       const forkTitle = (forkName || `${story.story_title} (Fork)`).trim()
       const forkContent = `${story.story_content || ''}\n\n[forked-from:${story.story_title}]`
       const created = await createNewRoom(forkTitle, story.story_content || '', story.genre || '')
-      if (!created?.[0]?.room_id) return
-      await supabase
-        .from('Rooms')
-        .update({ story_content: forkContent })
-        .eq('room_id', created[0].room_id)
       const newRoomId = created?.[0]?.room_id
-      if (newRoomId) {
-        if (penName) localStorage.setItem(`penname:${newRoomId}`, penName)
-        router.push(`/room/${newRoomId}`)
-      }
+      if (!newRoomId) return
+      await supabase.from('Rooms').update({ story_content: forkContent }).eq('room_id', newRoomId)
+      if (penName) localStorage.setItem(`penname:${newRoomId}`, penName)
+      router.push(`/room/${newRoomId}`)
     } finally {
       setForking(false)
       closeForkModal()
@@ -119,279 +275,156 @@ export default function Page({ params }: { params: { room_id: string } }) {
     closePenModal()
   }
 
-    const room_id = params.room_id
-    const socketRef = useRef<any>(null)
-    const lockStateRef = useRef<'open' | 'self' | 'other'>('open')
-    const penNameRef = useRef<string>('')
-    const router = useRouter()
+  /* ------------------------------ Data loading ----------------------------- */
 
-    const supabase = supabaseClient
+  const getStoryFromDB = useCallback(async () => {
+    const result = await getStory(room_id)
+    if (result) setStory(result[0])
+  }, [room_id])
 
-    const specialChannelName = 'roomInfo: ' + room_id;
-    const saveEditsChannel = 'saveEdits: ' + room_id;
+  useEffect(() => {
+    getStoryFromDB()
+  }, [getStoryFromDB])
 
-    
+  useEffect(() => {
+    if (!room_id) return
+    const saved = localStorage.getItem(`penname:${room_id}`)
+    if (saved) setPenName(saved)
+  }, [room_id])
 
-    // socket.on(specialChannelName, (data: any) => {
-    //     if(data["activeUser"] && user){
-    //         if(data["activeUser"] !== user.data.session.user.email){
-    //             setEditable(false)
-    //         } else {
-    //             setEditable(true)
-    //             setCurrentlyEditing(true)
-    //         }
-    //     } else {
-
-    //         // return to default state
-    //         setEditable(true)
-    //         setCurrentlyEditing(false)
-    //     }
-
-    //     if (data["typedContent"]) {setContent(data["typedContent"])}
-    // })
-
-    // socket.on(saveEditsChannel, (data: any) => {
-    //     getStoryfromDB()
-    // })
-
-    const getStoryfromDB = useCallback(async () => {
-        const Story = await getStory(room_id)
-        if (Story) { setStory(Story[0]) }
-    }, [room_id])
-
-    useEffect(() => {
-        getStoryfromDB()
-    }, [getStoryfromDB])
-
-    const colorForAuthor = (name: string) => {
-        let hash = 0
-        for (let i = 0; i < name.length; i++) {
-            hash = (hash * 31 + name.charCodeAt(i)) | 0
+  useEffect(() => {
+    if (!room_id) return
+    const channel = supabase
+      .channel(`room-updates-${room_id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'Rooms', filter: `room_id=eq.${room_id}` },
+        (payload) => {
+          if (payload?.new) setStory((prev: any) => ({ ...prev, ...payload.new }))
         }
-        const hue = Math.abs(hash) % 360
-        return {
-            base: `hsl(${hue}, 70%, 45%)`,
-            bg: `hsla(${hue}, 85%, 75%, 0.35)`
-        }
+      )
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe().catch(() => {})
     }
+  }, [room_id, supabase])
 
-    const parseStoryContent = (raw: string) => {
-        if (!raw) return []
-        const cleaned = raw.replace(/\[forked-from:[^\]]+\]/g, '')
-        const parsed: Array<{ author: string; text: string; mode: 'continue' | 'paragraph'; at?: string }> = []
-        const regex = /\[pen:([^|\]]+)(?:\|mode:(continue|paragraph))?(?:\|at:([^\]]+))?\]/g
-        let match: RegExpExecArray | null
-        let lastIndex = 0
-        let lastAuthor = 'Unknown'
-        let lastMode: 'continue' | 'paragraph' = 'continue'
-        let lastAt: string | undefined = undefined
+  /* --------------------------------- Socket -------------------------------- */
 
-        while ((match = regex.exec(cleaned)) !== null) {
-            const before = cleaned.slice(lastIndex, match.index).replace(/^\s+|\s+$/g, '')
-            if (before) {
-                parsed.push({ author: lastAuthor, text: before, mode: lastMode, at: lastAt })
-            }
-            lastAuthor = match[1].trim()
-            lastMode = (match[2] as 'continue' | 'paragraph' | undefined) || 'continue'
-            lastAt = match[3]
-            lastIndex = regex.lastIndex
-        }
+  useEffect(() => {
+    lockStateRef.current = lockState
+  }, [lockState])
 
-        const tail = cleaned.slice(lastIndex).replace(/^\s+|\s+$/g, '')
-        if (tail) {
-            parsed.push({ author: lastAuthor, text: tail, mode: lastMode, at: lastAt })
-        }
+  useEffect(() => {
+    penNameRef.current = penName
+  }, [penName])
 
-        return parsed
+  const releaseLock = useCallback(() => {
+    const socket = socketRef.current
+    if (socket?.readyState === 1 && lockStateRef.current === 'self' && penNameRef.current) {
+      socket.send(JSON.stringify({ type: 'stop_editing', user: penNameRef.current }))
     }
+  }, [])
 
-    const getRoomStatus = useCallback(() => {
-        const segments = parseStoryContent(story.story_content || '')
-        const uniqueAuthors = Array.from(new Set(segments.map((s) => s.author)))
-        const contributor = !!penName && uniqueAuthors.includes(penName)
-        const full = uniqueAuthors.length >= 12
-        return { segments, uniqueAuthors, isContributor: contributor, isRoomFull: full }
-    }, [story.story_content, penName])
+  useEffect(() => {
+    if (socketRef.current) return
+    const socket = setUpSocket(room_id)
+    if (!socket) return
+    socketRef.current = socket
 
-    useEffect(() => {
-        lockStateRef.current = lockState
-    }, [lockState])
-
-    useEffect(() => {
-        penNameRef.current = penName
-    }, [penName])
-
-
-    useEffect(() => {
-        if (socketRef.current) return
-        const socket = setUpSocket(room_id)
-        if (!socket) return
-        socketRef.current = socket
-
-        const handleMessage = (event: MessageEvent) => {
-            try {
-                const data = JSON.parse(event.data)
-                if (data?.type === "lock") {
-                    const activeUser = data?.activeUser
-                    if (!activeUser) {
-                        setLockState('open')
-                        setEditable(false)
-                        setCurrentlyEditing(false)
-                        return
-                    }
-                    if (activeUser === penName) {
-                        setLockState('self')
-                        setEditable(true)
-                    } else {
-                        setLockState('other')
-                        setEditable(false)
-                        setCurrentlyEditing(false)
-                        setContent('')
-                        setClearContent(true)
-                    }
-                }
-            } catch {
-                // ignore non-json messages
-            }
-        }
-
-        socket.addEventListener("message", handleMessage)
-
-        return () => {
-            if (socket.readyState === 1 && lockStateRef.current === 'self' && penNameRef.current) {
-                socket.send(JSON.stringify({
-                    type: "stop_editing",
-                    user: penNameRef.current,
-                }))
-            }
-            socket.removeEventListener("message", handleMessage)
-            socket.close()
-            socketRef.current = null
-        }
-    }, [room_id, penName])
-
-    useEffect(() => {
-        const onBeforeUnload = () => {
-            const socket = socketRef.current
-            if (!socket) return
-            if (socket.readyState === 1 && lockStateRef.current === 'self' && penNameRef.current) {
-                socket.send(JSON.stringify({
-                    type: "stop_editing",
-                    user: penNameRef.current,
-                }))
-            }
-        }
-
-        window.addEventListener('beforeunload', onBeforeUnload)
-        return () => window.removeEventListener('beforeunload', onBeforeUnload)
-    }, [])
-
-    useEffect(() => {
-        if (!room_id) return
-        const saved = localStorage.getItem(`penname:${room_id}`)
-        if (saved) {
-            setPenName(saved)
-        }
-    }, [room_id])
-
-    useEffect(() => {
-        if (!room_id) return
-        const channel = supabase
-            .channel(`room-updates-${room_id}`)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'Rooms', filter: `room_id=eq.${room_id}` },
-                (payload) => {
-                    if (payload?.new) {
-                        setStory((prev: any) => ({ ...prev, ...payload.new }))
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            channel.unsubscribe().catch(() => {})
-        }
-    }, [room_id, supabase])
-
-    // Effect 1: Start/clear the lock-release timeout (runs only when lockState/content change)
-    useEffect(() => {
-        if (lockState === 'self' && content.trim().length === 0) {
-            if (!lockTimeoutRef.current) {
-                setLockCountdown(LOCK_TIMEOUT_MS / 1000)
-                lockTimeoutRef.current = setTimeout(() => {
-                    // Re-check conditions before releasing
-                    if (lockState === 'self' && contentRef.current.trim().length === 0) {
-                        socketRef.current?.send(JSON.stringify({
-                            type: "stop_editing",
-                            user: penName,
-                        }))
-                        upsertStatus(room_id, 'Idle')
-                    }
-                    lockTimeoutRef.current = null
-                    setLockCountdown(0)
-                }, LOCK_TIMEOUT_MS)
-            }
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data?.type !== 'lock') return
+        const activeUser = data?.activeUser
+        if (!activeUser) {
+          setLockState('open')
+          setEditable(false)
+          setCurrentlyEditing(false)
+        } else if (activeUser === penName) {
+          setLockState('self')
+          setEditable(true)
         } else {
-            if (lockTimeoutRef.current) {
-                clearTimeout(lockTimeoutRef.current)
-                lockTimeoutRef.current = null
-            }
-            setLockCountdown(0)
+          setLockState('other')
+          setEditable(false)
+          setCurrentlyEditing(false)
+          setContent('')
+          setClearContent(true)
         }
+      } catch {
+        // ignore non-json messages
+      }
+    }
 
-        return () => {
-            if (lockTimeoutRef.current) {
-                clearTimeout(lockTimeoutRef.current)
-                lockTimeoutRef.current = null
-            }
-        }
-    }, [lockState, content, penName, room_id])
+    socket.addEventListener('message', handleMessage)
 
-    // Effect 2: Visual countdown tick (runs only when lockState changes)
-    useEffect(() => {
-        let intervalId: ReturnType<typeof setInterval> | null = null
+    return () => {
+      releaseLock()
+      socket.removeEventListener('message', handleMessage)
+      socket.close()
+      socketRef.current = null
+    }
+  }, [room_id, penName, releaseLock])
 
-        if (lockState === 'self' && content.trim().length === 0) {
-            intervalId = setInterval(() => {
-                setLockCountdown((prev) => (prev > 0 ? prev - 1 : 0))
-            }, 1000)
-        }
+  useEffect(() => {
+    window.addEventListener('beforeunload', releaseLock)
+    return () => window.removeEventListener('beforeunload', releaseLock)
+  }, [releaseLock])
 
-        return () => {
-            if (intervalId) clearInterval(intervalId)
-        }
-    }, [lockState, content])
+  /* ------------------------------ Lock timeout ----------------------------- */
 
-  // Clear typing status when lock is released (user stops editing without submitting)
+  const isIdleHolder = lockState === 'self' && content.trim().length === 0
+
+  useEffect(() => {
+    if (isIdleHolder) {
+      if (!lockTimeoutRef.current) {
+        setLockCountdown(LOCK_TIMEOUT_MS / 1000)
+        lockTimeoutRef.current = setTimeout(() => {
+          if (contentRef.current.trim().length === 0) {
+            socketRef.current?.send(JSON.stringify({ type: 'stop_editing', user: penName }))
+            upsertStatus(room_id, 'Idle')
+          }
+          lockTimeoutRef.current = null
+          setLockCountdown(0)
+        }, LOCK_TIMEOUT_MS)
+      }
+    } else {
+      if (lockTimeoutRef.current) {
+        clearTimeout(lockTimeoutRef.current)
+        lockTimeoutRef.current = null
+      }
+      setLockCountdown(0)
+    }
+
+    return () => {
+      if (lockTimeoutRef.current) {
+        clearTimeout(lockTimeoutRef.current)
+        lockTimeoutRef.current = null
+      }
+    }
+  }, [isIdleHolder, penName, room_id])
+
+  useEffect(() => {
+    if (!isIdleHolder) return
+    const id = setInterval(() => setLockCountdown((prev) => (prev > 0 ? prev - 1 : 0)), 1000)
+    return () => clearInterval(id)
+  }, [isIdleHolder])
+
+  // Clear typing status when the lock is released without submitting
   useEffect(() => {
     if (lockState !== 'self' && content.trim().length === 0) {
       upsertStatus(room_id, 'Idle')
     }
-  }, [lockState, content, penName, room_id])
+  }, [lockState, content, room_id])
 
-  // Reading mode keyboard navigation
+  /* ------------------------------ Reading mode ----------------------------- */
+
   useEffect(() => {
     if (!readingMode) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-
-      const { segments } = getRoomStatus()
-      let paragraphCount = 0
-      let current: Array<any> = []
-      segments.forEach((seg: any) => {
-        if (seg.mode === 'paragraph') {
-          if (current.length > 0) paragraphCount++
-          current = [seg]
-        } else {
-          if (current.length === 0) current = [seg]
-          else current.push(seg)
-        }
-      })
-      if (current.length > 0) paragraphCount++
-
       if (paragraphCount === 0) return
 
       if (e.key === 'ArrowDown' || e.key === 'j') {
@@ -413,18 +446,13 @@ export default function Page({ params }: { params: { room_id: string } }) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [readingMode, getRoomStatus])
+  }, [readingMode, paragraphCount])
 
-  // Reading mode auto-scroll to current paragraph
   useEffect(() => {
     if (!readingMode) return
-    const el = paragraphRefs.current[currentParagraphIdx]
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }
+    paragraphRefs.current[currentParagraphIdx]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [currentParagraphIdx, readingMode])
 
-  // Reading mode swipe navigation (mobile)
   useEffect(() => {
     if (!readingMode) return
 
@@ -437,36 +465,13 @@ export default function Page({ params }: { params: { room_id: string } }) {
     }
 
     const handleTouchEnd = (e: TouchEvent) => {
-      const endY = e.changedTouches[0].clientY
-      const endX = e.changedTouches[0].clientX
-      const deltaY = startY - endY
-      const deltaX = Math.abs(startX - endX)
+      const deltaY = startY - e.changedTouches[0].clientY
+      const deltaX = Math.abs(startX - e.changedTouches[0].clientX)
+      if (Math.abs(deltaY) <= 50 || deltaX >= 50 || paragraphCount === 0) return
 
-      // Only trigger on vertical swipes with sufficient distance and not horizontal
-      if (Math.abs(deltaY) > 50 && deltaX < 50) {
-        const { segments } = getRoomStatus()
-        let paragraphCount = 0
-        let current: Array<any> = []
-        segments.forEach((seg: any) => {
-          if (seg.mode === 'paragraph') {
-            if (current.length > 0) paragraphCount++
-            current = [seg]
-          } else {
-            if (current.length === 0) current = [seg]
-            else current.push(seg)
-          }
-        })
-        if (current.length > 0) paragraphCount++
-
-        if (paragraphCount === 0) return
-
-        // Swipe up = next paragraph, swipe down = previous paragraph
-        if (deltaY > 0) {
-          setCurrentParagraphIdx((prev) => Math.min(prev + 1, paragraphCount - 1))
-        } else {
-          setCurrentParagraphIdx((prev) => Math.max(prev - 1, 0))
-        }
-      }
+      // Swipe up = next paragraph, swipe down = previous paragraph
+      if (deltaY > 0) setCurrentParagraphIdx((prev) => Math.min(prev + 1, paragraphCount - 1))
+      else setCurrentParagraphIdx((prev) => Math.max(prev - 1, 0))
     }
 
     window.addEventListener('touchstart', handleTouchStart, { passive: true })
@@ -475,593 +480,471 @@ export default function Page({ params }: { params: { room_id: string } }) {
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [readingMode, getRoomStatus])
+  }, [readingMode, paragraphCount])
 
-    const saveContributionToDB = async (content: string) => {
-        const { data, error } = await supabase
-            .from('Rooms')
-            .update({ story_content: content })
-            .eq('room_id', room_id)
-        if (error) {
-            console.error('Error saving data:', error.message)
-            return { data: null, error }
+  /* ------------------------------ Saving / drafts -------------------------- */
+
+  const saveContributionToDB = async (updated: string) => {
+    const { error } = await supabase.from('Rooms').update({ story_content: updated }).eq('room_id', room_id)
+    if (error) console.error('Error saving data:', error.message)
+    return { error }
+  }
+
+  const startEditing = (name: string) => {
+    socketRef.current?.send(JSON.stringify({ type: 'start_editing', user: name }))
+    upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
+  }
+
+  const stopEditing = () => {
+    socketRef.current?.send(JSON.stringify({ type: 'stop_editing', user: penName }))
+  }
+
+  const saveEdits = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    if (saving) return
+    setSaving(true)
+    try {
+      const draft = contentRef.current.trim()
+      if (!draft) {
+        setIsConfirmOpen(false)
+        return
+      }
+      if (isRoomFull && !isContributor) {
+        setSaveError(`This story already has ${MAX_CONTRIBUTORS} contributors. You can read, but new contributors cannot add.`)
+        setIsConfirmOpen(false)
+        return
+      }
+
+      const header = `[pen:${penName || 'Anonymous'}|mode:${startMode}|at:${new Date().toISOString()}]`
+      const normalizedDraft = draft.replace(/\s*\n\s*/g, ' ').trim()
+      const base = story.story_content.trimEnd()
+      const updatedContent =
+        startMode === 'continue'
+          ? `${base} ${header} ${normalizedDraft}`
+          : `${base}\n\n${header}\n${normalizedDraft}`
+
+      const { error } = await saveContributionToDB(updatedContent)
+      if (error) {
+        setSaveError(error.message)
+        return
+      }
+
+      setSaveError('')
+      setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
+      setClearContent(true)
+      stopEditing()
+      upsertStatus(room_id, `Active:${new Date().toISOString()}`)
+      setIsConfirmOpen(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteEdits = () => {
+    setClearContent(true)
+    setContent('')
+    contentRef.current = ''
+    stopEditing()
+    upsertStatus(room_id, 'Idle')
+    setSaveError('')
+    setIsConfirmOpen(false)
+  }
+
+  /* --------------------------------- Render -------------------------------- */
+
+  if (!story.story_content) {
+    return <div className="content-column min-h-[60vh]" />
+  }
+
+  const socketReady = socketRef.current?.readyState === 1
+
+  return (
+    <div className="content-column">
+      {!readingMode && <Header />}
+
+      {/* Modals */}
+      <Sheet
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        label="Confirm"
+        title="Add this to the story?"
+        description="Once submitted, this piece can’t be edited — but others can build on it."
+        onSubmit={saveEdits}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={deleteEdits}>
+              Clear draft
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? 'Adding…' : 'Add to story'}
+            </button>
+          </>
         }
-        return { data, error: null }
-    }
+      >
+        {saveError && (
+          <div className="text-sm text-[var(--accent)]" role="alert">
+            {saveError}
+          </div>
+        )}
+      </Sheet>
 
-    // open up the room for others to edit
-    const saveEdits = async () => {
-        if (saving) return
-        setSaving(true)
-        try {
-            const draft = contentRef.current.trim()
-            if (!draft) {
-                closeModal()
-                return
-            }
-            const { isRoomFull, isContributor } = getRoomStatus()
-            if (isRoomFull && !isContributor) {
-                setSaveError('This story already has 12 contributors. You can read, but new contributors cannot add.')
-                closeModal()
-                return
-            }
-            console.log('Saving draft length:', draft.length)
-            const header = `[pen:${penName || 'Anonymous'}|mode:${startMode}|at:${new Date().toISOString()}]`
-            const normalizedDraft = draft.replace(/\s*\n\s*/g, ' ').trim()
-            if (startMode === 'continue') {
-                // Append inline to the existing paragraph
-                const updatedContent = `${story.story_content.trimEnd()} ${header} ${normalizedDraft}`
-                const result = await saveContributionToDB(updatedContent)
-                if (result?.error) {
-                    setSaveError(result.error.message)
-                    return
-                }
-                console.log('Save successful')
-                setSaveError('')
-                setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
-            } else {
-                const updatedContent = `${story.story_content.trimEnd()}\n\n${header}\n${normalizedDraft}`
-                const result = await saveContributionToDB(updatedContent)
-                if (result?.error) {
-                    setSaveError(result.error.message)
-                    return
-                }
-                console.log('Save successful')
-                setSaveError('')
-                setStory((prev: any) => ({ ...prev, story_content: updatedContent }))
-            }
-            setClearContent(true)
-            socketRef.current?.send(JSON.stringify({
-                type: "stop_editing",
-                user: penName,
-            }))
-            upsertStatus(room_id, `Active:${new Date().toISOString()}`)
-            
-            closeModal()
-            // socket.emit('saveEdits', {room_id: room_id})
-        } finally {
-            setSaving(false)
+      <Sheet
+        isOpen={isForkOpen}
+        onClose={closeForkModal}
+        label="Fork story"
+        title="Name your fork"
+        description="This creates a new story starting from the current one."
+        onSubmit={handleForkSubmit}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={closeForkModal}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={forking}>
+              {forking ? 'Forking…' : 'Create fork'}
+            </button>
+          </>
         }
-    }
+      >
+        {forkError && (
+          <div className="text-sm text-[var(--accent)]" role="alert">
+            {forkError}
+          </div>
+        )}
+        <input
+          type="text"
+          placeholder={`${story.story_title} (Fork)`}
+          value={forkName}
+          onChange={(e) => setForkName(e.target.value)}
+          className="input"
+        />
+      </Sheet>
 
-    const deleteEdits = () => {
-        setClearContent(true)
-        setContent('')
-        contentRef.current = ''
-        socketRef.current?.send(JSON.stringify({
-            type: "stop_editing",
-            user: penName,
-        }))
-        upsertStatus(room_id, 'Idle')
-        setSaveError('')
-        closeModal()
-    }
+      <Sheet
+        isOpen={isPenOpen}
+        onClose={closePenModal}
+        label="Pen name"
+        title="Update your pen name"
+        description="This only changes your name for this story."
+        onSubmit={handlePenSubmit}
+        actions={
+          <>
+            <button type="button" className="btn btn-ghost" onClick={closePenModal}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary">
+              Save
+            </button>
+          </>
+        }
+      >
+        <input
+          type="text"
+          placeholder="Pen name"
+          value={penDraft}
+          onChange={(e) => setPenDraft(e.target.value)}
+          className="input"
+        />
+      </Sheet>
 
-    console.log("Editable: ", editable), console.log("Currently Editing: ", currentlyEditing)
-    
+      {/* Single column: every block below shares the same left and right edge */}
+      <main className="mx-auto w-full max-w-3xl px-5 sm:px-8 pt-6 pb-24 flex flex-col gap-8">
+        {/* Toolbar */}
+        <nav className="flex items-center justify-between gap-4">
+          <Link href="/" className="btn btn-ghost text-xs" aria-label="Back to all stories">
+            ←
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setReadingMode((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
+            >
+              <BookIcon />
+              {readingMode ? 'Exit reading mode' : 'Reading mode'}
+            </button>
+          </div>
+        </nav>
 
-    return (
-        <div className="content-column">
-            
-            {!readingMode && <Header/>}
-            <Modal isOpen={isOpen} onRequestClose={closeModal} style={modalStyles} contentLabel="Confirm contribution" >
-          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={saveEdits}>
-            <div className="sheet-header">
-              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Confirm</p>
-              <h2 className="ink-title text-2xl mt-1">Add this to the story?</h2>
-              <p className="text-small text-[var(--text-muted)] mt-1">
-                Once submitted, this piece can’t be edited — but others can build on it.
-              </p>
+        {/* Title block */}
+        <header className="flex flex-col gap-2">
+          <h1 className="ink-title text-3xl md:text-5xl">{story.story_title}</h1>
+          {(story.genre || forkedFrom) && (
+            <div className="flex flex-col gap-1 text-small text-[var(--text-muted)] pl-2">
+              {story.genre && <span className="text-[var(--text-faint)]">#{story.genre}</span>}
+              {forkedFrom && <span>Forked from {forkedFrom}</span>}
             </div>
-            <div className="sheet-content">
-              {saveError && (
-                <div className="mb-4 text-sm text-[var(--accent)]" role="alert">
-                  {saveError}
-                </div>
-              )}
-              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={deleteEdits}
-                >
-                  Clear Draft
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={saving}
-                >
-                  {saving ? 'Adding…' : 'Add to Story'}
-                </button>
-              </div>
+          )}
+          {!readingMode && lockState === 'self' && (
+            <span className="flex items-center gap-2 text-small text-[var(--accent)] pl-2 ">
+              <span className="status-dot status-typing" />
+              Your turn
+            </span>
+          )}
+          {!readingMode && lockState === 'other' && (
+            <span
+              className="badge self-start"
+              style={{ background: 'var(--selection)', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+            >
+              Someone else is writing right now.
+            </span>
+          )}
+        </header>
+
+        {/* Contributors */}
+        {!readingMode && (
+          <details>
+            <summary className="cursor-pointer text-micro text-[var(--text-muted)] flex items-center gap-2 pl-2">
+              Contributors
+              <span className="text-[var(--text-faint)]">
+                {uniqueAuthors.length}/{MAX_CONTRIBUTORS}
+              </span>
+            </summary>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {uniqueAuthors.map((name) => {
+                const color = colorForAuthor(name)
+                return (
+                  <button
+                    key={name}
+                    onMouseEnter={() => setHoverAuthor(name)}
+                    onMouseLeave={() => setHoverAuthor(null)}
+                    className="contributor-mark badge badge-muted flex items-center gap-2"
+                    style={{ borderColor: color.base }}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ background: color.base }} aria-hidden="true" />
+                    {name}
+                  </button>
+                )
+              })}
             </div>
-          </form>
-        </Modal>
-            <Modal isOpen={isForkOpen} onRequestClose={closeForkModal} style={modalStyles} contentLabel="Fork story" >
-          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={handleForkSubmit}>
-            <div className="sheet-header">
-              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Fork Story</p>
-              <h2 className="ink-title text-2xl mt-1">Name your fork</h2>
-              <p className="text-small text-[var(--text-muted)] mt-1">
-                This creates a new story starting from the current one.
-              </p>
+          </details>
+        )}
+
+        {/* Story */}
+        <article
+          className={
+            readingMode
+              ? 'reading-mode leading-8 md:leading-9 text-lg md:text-xl'
+              : 'leading-7 md:leading-8 text-base md:text-lg'
+          }
+        >
+          {readingMode && (
+            <div className="mb-8 flex items-center gap-4 text-micro text-[var(--text-faint)]">
+              <kbd className={kbdClass}>↑/↓</kbd>
+              <kbd className={kbdClass}>j/k</kbd>
+              <kbd className={kbdClass}>Home/End</kbd>
+              <kbd className={kbdClass}>Click</kbd>
+              <kbd className={kbdClass}>Esc</kbd>
+              <span className="sr-only">
+                Reading mode navigation: press up arrow or k for previous paragraph, down arrow or j for next
+                paragraph, Home for first, End for last, click a paragraph to select it, Escape to exit reading mode.
+              </span>
             </div>
-            <div className="sheet-content">
-              {forkError && (
-                <div className="mb-4 text-sm text-[var(--accent)]" role="alert">
-                  {forkError}
-                </div>
-              )}
-              <input
-                type="text"
-                placeholder={`${story.story_title} (Fork)`}
-                value={forkName}
-                onChange={(e) => setForkName(e.target.value)}
-                className="input"
-              />
-              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={closeForkModal}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={forking}
-                  className="btn btn-primary"
-                >
-                  {forking ? 'Forking…' : 'Create Fork'}
-                </button>
-              </div>
-            </div>
-          </form>
-        </Modal>
-            <Modal isOpen={isPenOpen} onRequestClose={closePenModal} style={modalStyles} contentLabel="Update pen name" >
-          <form className="sheet max-h-[85vh] overflow-y-auto" onSubmit={handlePenSubmit}>
-            <div className="sheet-header">
-              <p className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Pen Name</p>
-              <h2 className="ink-title text-2xl mt-1">Update your pen name</h2>
-              <p className="text-small text-[var(--text-muted)] mt-1">
-                This only changes your name for this story.
-              </p>
-            </div>
-            <div className="sheet-content">
-              <input
-                type="text"
-                placeholder="Pen name"
-                value={penDraft}
-                onChange={(e) => setPenDraft(e.target.value)}
-                className="input"
-              />
-              <div className="flex flex-col md:flex-row md:justify-end gap-3 pt-3 border-t border-[var(--border)] mt-4">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={closePenModal}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </form>
-        </Modal>
-            {story.story_content ?
-            <div className="min-h-screen flex flex-col py-2 mb-20">
-                <div className="mt-6 px-2 flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center space-x-2 md:space-x-3 flex-wrap gap-2">
-                        <Link href="/" className="btn btn-ghost text-xs px-2 py-1">←</Link>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        {!readingMode && (
-                          <button
-                            type="button"
-                            disabled={forking}
-                            onClick={() => {
-                              if (forking) return
-                              setForkName('')
-                              setIsForkOpen(true)
-                            }}
-                            className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
-                          >
-                            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M6 3v12"/><path d="M18 9v6"/><path d="M6 13a6 6 0 0 0 12 0"/><path d="M18 3a6 6 0 0 1-12 0"/></svg>
-                            {forking ? 'Forking…' : 'Fork Story'}
-                          </button>
-                        )}
-                    </div>
-                </div>
-                <div className="mt-4 px-2">
-                    <h2 className="ink-title text-3xl md:text-5xl">{story.story_title}</h2>
-                    {story.genre && <div className="mt-1 text-micro text-[var(--text-faint)] uppercase tracking-[0.1em]">#{story.genre}</div>}
-                </div>
-                {(() => {
-                    const match = story.story_content?.match(/\[forked-from:([^\]]+)\]/)
-                    if (!match) return null
-                    return (
-                        <div className="px-2 mt-2 text-small text-[var(--text-muted)]">
-                            Forked from: {match[1].trim()}
-                        </div>
-                    )
-                })()}
-                {!readingMode && (
-                    <div className="px-2 mt-3">
-                        {lockState === 'self' && (
-                            <span className="flex items-center gap-1.5 text-small text-[var(--accent)]">
-                              <span className="status-dot status-typing" />
-                              Your turn
-                            </span>
-                        )}
-                        {lockState === 'other' && (
-                            <span className="badge" style={{ background: 'var(--selection)', color: 'var(--accent)', borderColor: 'var(--accent)' }}>
-                              Someone else is writing right now.
-                            </span>
-                        )}
-                    </div>
+          )}
+
+          {readOnly && (
+            <p className="mb-6 text-small text-[var(--text-muted)]">
+              This story already has {MAX_CONTRIBUTORS} contributors. You can read, but new contributors can&apos;t add.
+            </p>
+          )}
+
+          {paragraphs.map((para, pIdx) => {
+            const isCurrent = readingMode && pIdx === currentParagraphIdx
+            return (
+              <p
+                key={`p-${pIdx}`}
+                ref={(el) => {
+                  paragraphRefs.current[pIdx] = el
+                }}
+                className={`mb-6 ${isCurrent ? 'relative pl-3 border-l-2 border-[var(--accent)]' : ''}`}
+                style={{
+                  opacity: readingMode && !isCurrent ? 0.45 : 1,
+                  transition: 'opacity 200ms ease',
+                }}
+                onClick={() => readingMode && setCurrentParagraphIdx(pIdx)}
+              >
+                {isCurrent && (
+                  <span className="absolute -left-3 top-0 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-hidden="true" />
                 )}
-                <div className="mt-6">
-                    <aside>
-                        {readingMode && (
-                          <div className="mb-4 px-2">
-                            <button
-                              type="button"
-                              onClick={() => setReadingMode(false)}
-                              className="inline-flex items-center gap-1.5 btn btn-primary"
-                            >
-                              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                              Exit Reading Mode
-                            </button>
-                          </div>
-                        )}
-                        {!readingMode && (
-                          <div className="mb-4 px-2">
-                            <button
-                              type="button"
-                              onClick={() => setReadingMode(true)}
-                              className="inline-flex items-center gap-1.5 btn btn-primary"
-                            >
-                              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                              Reading Mode
-                            </button>
-                          </div>
-                        )}
-                        {!readingMode && (
-                          <details>
-                            <summary className="cursor-pointer text-micro uppercase tracking-[0.2em] text-[var(--text-muted)] flex items-center gap-2">
-                                Contributors
-                                <span className="text-[var(--text-faint)]">{getRoomStatus().uniqueAuthors.length}/12</span>
-                            </summary>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                {getRoomStatus().uniqueAuthors.map((name) => {
-                                  const authorColor = colorForAuthor(name)
-                                  return (
-                                    <button
-                                      key={name}
-                                      onMouseEnter={() => setHoverAuthor(name)}
-                                      onMouseLeave={() => setHoverAuthor(null)}
-                                      className="contributor-mark badge badge-muted flex items-center gap-2"
-                                      style={{ borderColor: authorColor.base }}
-                                    >
-                                      <span
-                                        className="w-2 h-2 rounded-full"
-                                        style={{ background: authorColor.base }}
-                                        aria-hidden="true"
-                                      />
-                                      {name}
-                                    </button>
-                                  )
-                                })}
-                            </div>
-                          </details>
-                        )}
-                    </aside>
-                    <div className={readingMode ? "reading-mode leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
-                    {readingMode && (
-                      <div className="mb-6 flex justify-center px-2">
-                        <span className="text-micro text-[var(--text-faint)] flex items-center gap-4">
-                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">↑/↓</kbd>
-                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">j/k</kbd>
-                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Home/End</kbd>
-                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Click</kbd>
-                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Esc</kbd>
-                        </span>
-                        <span className="sr-only">Reading mode navigation: press up arrow or j for previous paragraph, down arrow or k for next paragraph, Home for first, End for last, click a paragraph to select it, Escape to exit reading mode.</span>
-                      </div>
-                    )}
-                      <div className='mt-2 leading-8 text-normal '>
-                        {(() => {
-                          const { segments, uniqueAuthors, isContributor, isRoomFull } = getRoomStatus()
-                          return (
-                            <>
-                                {isRoomFull && !isContributor && (
-                                    <div className="text-small text-[var(--text-muted)] mb-4">
-                                        This story already has 12 contributors. You can read, but new contributors can&apos;t add.
-                                    </div>
-                                )}
-                                {(() => {
-                                    const paragraphs: Array<Array<any>> = []
-                                    let current: Array<any> = []
-                                    segments.forEach((seg: any) => {
-                                        if (seg.mode === 'paragraph') {
-                                            if (current.length > 0) paragraphs.push(current)
-                                            current = [seg]
-                                        } else {
-                                            if (current.length === 0) current = [seg]
-                                            else current.push(seg)
-                                        }
-                                    })
-                                    if (current.length > 0) paragraphs.push(current)
+                {para.map((seg, sIdx) => {
+                  const isCurrentLine = isCurrent && sIdx === para.length - 1
+                  const color = colorForAuthor(seg.author)
+                  return (
+                    <span
+                      key={`${seg.author}-${pIdx}-${sIdx}`}
+                      onMouseEnter={() => setHoverAuthor(seg.author)}
+                      onMouseLeave={() => setHoverAuthor(null)}
+                      className="group relative whitespace-pre-wrap py-0.5 rounded"
+                      style={{
+                        background: isCurrentLine
+                          ? 'var(--focus-line)'
+                          : hoverAuthor === seg.author
+                            ? color.bg
+                            : 'transparent',
+                      }}
+                      title={seg.author}
+                    >
+                      {sIdx > 0 ? ' ' : ''}
+                      <span className="contributor-mark">{seg.text}</span>
+                      <span className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-[var(--text)] text-[var(--bg)] text-xs opacity-0 group-hover:opacity-90 transition-opacity pointer-events-none">
+                        {seg.author}
+                      </span>
+                    </span>
+                  )
+                })}
+              </p>
+            )
+          })}
+        </article>
 
-                                    return paragraphs.map((para, pIdx) => {
-                                        const isCurrentParagraph = readingMode && pIdx === currentParagraphIdx
-                                        const paragraphStyle = readingMode && !isCurrentParagraph
-                                            ? { opacity: 0.45, transition: 'opacity 200ms ease' }
-                                            : { transition: 'opacity 200ms ease' }
+        {/* Fork button above writing area (right aligned) */}
+        {!readingMode && (
+          <div className="flex justify-end pr-2 sm:pr-4 md:pr-6 lg:pr-8">
+            <button
+              type="button"
+              disabled={forking}
+              onClick={() => {
+                setForkName('')
+                setIsForkOpen(true)
+              }}
+              className="inline-flex items-center gap-1.5 btn btn-ghost text-xs"
+            >
+              <ForkIcon />
+              {forking ? 'Forking…' : 'Fork story'}
+            </button>
+          </div>
+        )}
 
-                                        return (
-                                            <p
-                                                key={`p-${pIdx}`}
-                                                ref={(el) => { paragraphRefs.current[pIdx] = el }}
-                                                className={`mb-6 leading-7 ${readingMode && isCurrentParagraph ? 'relative pl-3 border-l-2 border-[var(--accent)]' : ''}`}
-                                                style={paragraphStyle}
-                                                onClick={() => readingMode && setCurrentParagraphIdx(pIdx)}
-                                            >
-                                                {readingMode && isCurrentParagraph && (
-                                                  <span className="absolute -left-3 top-0 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-hidden="true" />
-                                                )}
-                                                {para.map((seg: any, sIdx: number) => {
-                                                    const isHoverHighlighted = hoverAuthor === seg.author
-                                                    const isCurrentLine = readingMode && isCurrentParagraph && sIdx === para.length - 1
-                                                    const authorColor = colorForAuthor(seg.author)
-                                                    return (
-                                                        <span
-                                                            key={`${seg.author}-${pIdx}-${sIdx}`}
-                                                            onMouseEnter={() => setHoverAuthor(seg.author)}
-                                                            onMouseLeave={() => setHoverAuthor(null)}
-                                                            className="group relative whitespace-pre-wrap py-0.5 rounded"
-                                                            style={{
-                                                                background: isCurrentLine ? 'var(--focus-line)'
-                                                                  : isHoverHighlighted ? authorColor.bg
-                                                                  : 'transparent'
-                                                            }}
-                                                            title={seg.author}
-                                                        >
-                                                            {sIdx > 0 ? ' ' : ''}
-                                                            <span className="contributor-mark">
-                                                              {seg.text}
-                                                            </span>
-                                                            <span className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-[var(--text)] text-[var(--bg)] text-xs opacity-0 group-hover:opacity-90 transition-opacity pointer-events-none">
-                                                                {seg.author}
-                                                            </span>
-                                                        </span>
-                                                    )
-                                                })}
-                                            </p>
-                                        )
-                                    })
-                                })()}
-                            </>
-                        )
-                      })()}
-                      </div>
-                    </div>
-                    {readingMode && (
-                      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10" role="navigation" aria-label="Paragraph navigation">
-                        {(() => {
-                          const { segments } = getRoomStatus()
-                          let paragraphCount = 0
-                          let current: Array<any> = []
-                          segments.forEach((seg: any) => {
-                            if (seg.mode === 'paragraph') {
-                              if (current.length > 0) paragraphCount++
-                              current = [seg]
-                            } else {
-                              if (current.length === 0) current = [seg]
-                              else current.push(seg)
-                            }
-                          })
-                          if (current.length > 0) paragraphCount++
-                          return Array.from({ length: paragraphCount }, (_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setCurrentParagraphIdx(i)}
-                              className={`w-2 h-2 rounded-full transition-all ${i === currentParagraphIdx ? 'bg-[var(--text)]' : 'bg-[var(--text-faint)] hover:bg-[var(--text-muted)]'}`}
-                              aria-label={"Go to paragraph " + (i + 1)}
-                              aria-current={i === currentParagraphIdx ? 'true' : 'false'}
-                            />
-                          ))
-                        })()}
-                      </div>
-                    )}
+        {/* Writing area */}
+        {!readingMode && !readOnly && (
+          <section className="flex flex-col gap-4">
+            {!penName ? (
+              <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)] border border-[var(--accent)]">
+                Choose a pen name from the main page to write.
+              </div>
+            ) : lockState === 'self' ? (
+              <>
+                <StoryEditor
+                  story={story}
+                  setCurrentlyEditing={setCurrentlyEditing}
+                  clearContent={clearContent}
+                  setClearContent={setClearContent}
+                  editable={editable}
+                  onStartEditing={() => startEditing(penName)}
+                  onContentChange={(text) => {
+                    contentRef.current = text
+                    setContent(text)
+                  }}
+                />
+
+                <div className="flex items-center justify-between gap-4">
+                  <button type="button" onClick={() => openPenModal(penName)} className={penButtonClass}>
+                    <PenIcon />
+                    Pen name: {penName}
+                  </button>
+                  {lockCountdown > 0 && (
+                    <div
+                      className="h-7 w-7 border border-[var(--text)] rounded-full shrink-0"
+                      style={{
+                        background: `conic-gradient(var(--text-muted) ${Math.round(
+                          (lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360
+                        )}deg, var(--border) 0deg)`,
+                      }}
+                      aria-label={`Time remaining: ${lockCountdown} seconds`}
+                    />
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-4 flex-wrap pt-4 border-t border-[var(--border)]">
+                  <div className="flex items-center gap-2" role="group" aria-label="Where should your writing go?">
+                    <button
+                      type="button"
+                      onClick={() => setStartMode('continue')}
+                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
+                      aria-label="Continue mode: keep writing in the same paragraph"
+                      aria-pressed={startMode === 'continue'}
+                    >
+                      <span aria-hidden="true">↩︎</span>
+                      Continue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStartMode('paragraph')}
+                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
+                      aria-label="New paragraph mode: start a fresh line"
+                      aria-pressed={startMode === 'paragraph'}
+                    >
+                      <span aria-hidden="true">¶</span>
+                      New paragraph
+                    </button>
                   </div>
-                {!readingMode && (
-                <div className="mt-8 mb-4 px-2 relative">
-                    {(() => {
-                        const { isContributor, isRoomFull } = getRoomStatus()
-                        if (isRoomFull && !isContributor) {
-                            return (
-                                <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)]">
-                                    Read-only: this story is full.
-                                </div>
-                            )
-                        }
-                        return (
-                            !penName ? (
-                                <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)] border border-[var(--accent)]">
-                                    Choose a pen name from the main page to write.
-                                </div>
-                            ) : lockState === 'self' ? (
-                                <>
-                                    <StoryEditor
-                                        story={story}
-                                        setCurrentlyEditing={setCurrentlyEditing}
-                                        clearContent={clearContent}
-                                        setClearContent={setClearContent}
-                                        editable={editable}
-                                        onStartEditing={() => {
-                                            socketRef.current?.send(JSON.stringify({
-                                                type: "start_editing",
-                                                user: penName,
-                                            }))
-                                    upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
-                                        }}
-                                        onContentChange={(text) => {
-                                            contentRef.current = text
-                                            setContent(text)
-                                        }}
-                                    />
-                                    <div className="w-full flex justify-between items-center px-2 mt-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setPenDraft(penName)
-                                                setIsPenOpen(true)
-                                            }}
-                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-xs hover:bg-[var(--selection)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
-                                        >
-                                            <svg className="w-3.5 h-3.5 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                            Pen name: {penName}
-                                        </button>
-                                        {lockCountdown > 0 && (
-                                            <div
-                                                className="h-7 w-7 border border-[var(--text)] rounded-full shrink-0"
-                                                style={{
-                                                    background: "conic-gradient(var(--text-muted) " + Math.round((lockCountdown / (LOCK_TIMEOUT_MS / 1000)) * 360) + "deg, var(--border) 0deg)"
-                                                }}
-                                                aria-label={"Time remaining: " + lockCountdown + " seconds"}
-                                            ></div>
-                                        )}
-                                    </div>
-                                </>
-                            ) : lockState === 'open' ? (
-                                socketRef.current?.readyState === 1 ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            const name = penName.trim()
-                                            if (!name) return
-                                            socketRef.current?.send(JSON.stringify({
-                                                type: "start_editing",
-                                                user: name,
-                                            }))
-                                    upsertStatus(room_id, `Typing:${new Date().toISOString()}`)
-                                        }}
-                                        className="flex items-center justify-center text-sm font-medium min-h-40 w-full text-[var(--success)] border-2 border-[var(--success)] bg-transparent hover:border-[var(--success)] hover:bg-[var(--success)]/10 hover:scale-[1.02] rounded-xl transition-all duration-200"
-                                    >
-                                        Tap to start writing
-                                    </button>
-                                ) : null
-                            ) : (
-                                <div className="surface flex items-center justify-center text-sm min-h-40 border border-[var(--border)]">
-                                    <div className="flex flex-col items-center space-y-3 text-[var(--text-muted)]">
-                                        <span className="text-base">Waiting on the writer…</span>
-                                        <span className="flex items-center space-x-2">
-                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:-0.2s]"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce"></span>
-                                            <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:0.2s]"></span>
-                                        </span>
-                                    </div>
-                                </div>
-                            )
-                        )
-                    })()}
-                </div>
-                )}
-                {!readingMode && lockState === 'self' && !penName && (
-                    <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setPenDraft('')
-                                setIsPenOpen(true)
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-full text-xs hover:bg-[var(--selection)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all"
-                        >
-                            <svg className="w-4 h-4 shrink-0 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            Set pen name to write
-                        </button>
-                    </div>
-                )}
-                {!readingMode && lockState === 'self' && penName && (
-                    <div className="flex flex-col items-center justify-center text-small text-[var(--text-muted)] px-2 mt-3 space-y-4">
-                        
-                        <div className="text-center text-small text-[var(--text-muted)]">
-                            Same paragraph, or start fresh?
-                        </div>
-                        <div className="flex items-center justify-center space-x-3">
-                            <button
-                                type="button"
-                                onClick={() => setStartMode('continue')}
-                                className={`inline-flex items-center gap-1.5 btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
-                                aria-label="Continue mode: keep writing in the same paragraph"
-                            >
-                                <span className="text-base" aria-hidden="true">↩︎</span>
-                                <span>Continue</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setStartMode('paragraph')}
-                                className={`inline-flex items-center gap-1.5 btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
-                                aria-label="New paragraph mode: start a fresh line"
-                            >
-                                <span className="text-base" aria-hidden="true">¶</span>
-                                <span>New paragraph</span>
-                            </button>
-                        </div>
-                    </div>
-                )}
-                {!readingMode && lockState === 'other' && (
-                    <div className="text-[var(--text-muted)] flex text-small  justify-center px-4 transform transition ease-in">
-                        Another user is currently writing. You can start once they submit.
-                    </div>
-                )}
-                
-                {!readingMode && lockState === 'self' && content.trim().length > 0 &&
-                        <>
-                            <div className="w-full flex justify-center px-2 font-bold mt-6">
-                                <motion.div whileHover={{ x: 1 , y: 1}}>
-                                    <button onClick={() => setIsOpen(true)} className="btn btn-primary px-8 py-4">
-                                        <p className="pr-2 uppercase tracking-[0.2em] text-sm"> Add to Story </p>
-                                    </button>
-                                </motion.div>       
-                            </div>
-                        </>
-                }
-                
-            </div> :
-            <div className="content-column min-h-[60vh] flex justify-center items-center">
-                
-            </div>
-            }
-        </div>
-    )
 
-   
+                  {content.trim().length > 0 && (
+                    <motion.div whileHover={{ x: 1, y: 1 }}>
+                      <button type="button" onClick={() => setIsConfirmOpen(true)} className="btn btn-primary">
+                        Add to story
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
+              </>
+            ) : lockState === 'open' ? (
+              socketReady && (
+                <button
+                  type="button"
+                  onClick={() => startEditing(penName.trim())}
+                  className="flex items-center justify-center text-sm font-medium min-h-40 w-full text-[var(--success)] border-2 border-[var(--success)] bg-transparent hover:bg-[var(--success)]/10 rounded-xl transition-colors duration-200"
+                >
+                  Tap to start writing
+                </button>
+              )
+            ) : (
+              <>
+                <div className="surface flex items-center justify-center text-sm min-h-40 border border-[var(--border)]">
+                  <div className="flex flex-col items-center gap-3 text-[var(--text-muted)]">
+                    <span className="text-base">Waiting on the writer…</span>
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:-0.2s]" />
+                      <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce" />
+                      <span className="h-2 w-2 rounded-full bg-[var(--text)] animate-bounce [animation-delay:0.2s]" />
+                    </span>
+                  </div>
+                </div>
+                <p className="text-small text-[var(--text-muted)]">
+                  Another user is currently writing. You can start once they submit.
+                </p>
+              </>
+            )}
+          </section>
+        )}
+
+        {!readingMode && readOnly && (
+          <div className="surface flex items-center justify-center text-sm min-h-40 w-full text-[var(--text-muted)]">
+            Read-only: this story is full.
+          </div>
+        )}
+      </main>
+
+      {/* Reading mode paragraph dots */}
+      {readingMode && (
+        <div
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10"
+          role="navigation"
+          aria-label="Paragraph navigation"
+        >
+          {Array.from({ length: paragraphCount }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentParagraphIdx(i)}
+              className={`w-2 h-2 rounded-full transition-all ${
+                i === currentParagraphIdx ? 'bg-[var(--text)]' : 'bg-[var(--text-faint)] hover:bg-[var(--text-muted)]'
+              }`}
+              aria-label={`Go to paragraph ${i + 1}`}
+              aria-current={i === currentParagraphIdx ? 'true' : 'false'}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
