@@ -56,6 +56,7 @@ export default function Page({ params }: { params: { room_id: string } }) {
     const [highlightOwn, setHighlightOwn] = useState<boolean>(true)
     const [readingMode, setReadingMode] = useState<boolean>(false)
     const [currentParagraphIdx, setCurrentParagraphIdx] = useState<number>(0)
+    const paragraphRefs = useRef<(HTMLParagraphElement | null)[]>([])
     const [forking, setForking] = useState<boolean>(false)
     const lockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const LOCK_TIMEOUT_MS = 60000
@@ -402,6 +403,15 @@ export default function Page({ params }: { params: { room_id: string } }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [readingMode, getRoomStatus])
 
+  // Reading mode auto-scroll to current paragraph
+  useEffect(() => {
+    if (!readingMode) return
+    const el = paragraphRefs.current[currentParagraphIdx]
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [currentParagraphIdx, readingMode])
+
     const saveContributionToDB = async (content: string) => {
         const { data, error } = await supabase
             .from('Rooms')
@@ -678,6 +688,18 @@ export default function Page({ params }: { params: { room_id: string } }) {
                         </details>
                     </aside>
                     <div className={readingMode ? "reading-mode leading-8 md:leading-9 text-lg md:text-xl" : "leading-7 md:leading-8 text-base md:text-lg"}>
+                    {readingMode && (
+                      <div className="mb-6 flex items-center justify-between px-2">
+                        <span className="text-micro uppercase tracking-[0.2em] text-[var(--text-muted)]">Reading Mode</span>
+                        <span className="text-micro text-[var(--text-faint)] flex items-center gap-4">
+                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">↑/↓</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">j/k</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Home/End</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Click</kbd>
+                          <kbd className="px-1.5 py-0.5 bg-[var(--bg-elevated)] border border-[var(--border)] rounded text-[10px]">Esc</kbd>
+                        </span>
+                      </div>
+                    )}
                       <div className='mt-2 leading-8 text-normal '>
                         {(() => {
                           const { segments, uniqueAuthors, isContributor, isRoomFull } = getRoomStatus()
@@ -711,10 +733,14 @@ export default function Page({ params }: { params: { room_id: string } }) {
                                         return (
                                             <p
                                                 key={`p-${pIdx}`}
-                                                className="mb-6 leading-7"
+                                                ref={(el) => { paragraphRefs.current[pIdx] = el }}
+                                                className={`mb-6 leading-7 ${readingMode && isCurrentParagraph ? 'relative pl-3 border-l-2 border-[var(--accent)]' : ''}`}
                                                 style={paragraphStyle}
                                                 onClick={() => readingMode && setCurrentParagraphIdx(pIdx)}
                                             >
+                                                {readingMode && isCurrentParagraph && (
+                                                  <span className="absolute -left-3 top-0 w-1.5 h-1.5 rounded-full bg-[var(--accent)]" aria-hidden="true" />
+                                                )}
                                                 {para.map((seg: any, sIdx: number) => {
                                                     const isHoverHighlighted = hoverAuthor === seg.author
                                                     const isOwnHighlighted = highlightOwn && penName && seg.author === penName
