@@ -838,6 +838,35 @@ export default function Page({ params }: { params: { room_id: string } }) {
               </div>
             ) : lockState === 'self' ? (
               <>
+                {/* Start mode selector - above editor */}
+                <div className="flex flex-col gap-2 mb-4" role="group" aria-label="Where should your writing go?">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStartMode('continue')}
+                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
+                      aria-label="Continue mode: keep writing in the same paragraph"
+                      aria-pressed={startMode === 'continue'}
+                    >
+                      <span aria-hidden="true">↩︎</span>
+                      Continue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStartMode('paragraph')}
+                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
+                      aria-label="New paragraph mode: start a fresh line"
+                      aria-pressed={startMode === 'paragraph'}
+                    >
+                      <span aria-hidden="true">¶</span>
+                      New paragraph
+                    </button>
+                  </div>
+                  <p className="text-micro text-[var(--text-muted)]">
+                    Continue appends to the current paragraph. New paragraph starts a fresh line.
+                  </p>
+                </div>
+
                 <StoryEditor
                   story={story}
                   setCurrentlyEditing={setCurrentlyEditing}
@@ -869,33 +898,10 @@ export default function Page({ params }: { params: { room_id: string } }) {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between gap-4 flex-wrap pt-4 border-t border-[var(--border)]">
-                  <div className="flex items-center gap-2" role="group" aria-label="Where should your writing go?">
-                    <button
-                      type="button"
-                      onClick={() => setStartMode('continue')}
-                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'continue' ? 'btn-primary' : 'btn-secondary'}`}
-                      aria-label="Continue mode: keep writing in the same paragraph"
-                      aria-pressed={startMode === 'continue'}
-                    >
-                      <span aria-hidden="true">↩︎</span>
-                      Continue
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStartMode('paragraph')}
-                      className={`inline-flex items-center gap-1.5 btn ${startMode === 'paragraph' ? 'btn-primary' : 'btn-secondary'}`}
-                      aria-label="New paragraph mode: start a fresh line"
-                      aria-pressed={startMode === 'paragraph'}
-                    >
-                      <span aria-hidden="true">¶</span>
-                      New paragraph
-                    </button>
-                  </div>
-
+                <div className="flex items-center justify-end pt-4 border-t border-[var(--border)]">
                   {content.trim().length > 0 && (
                     <motion.div whileHover={{ x: 1, y: 1 }}>
-                      <button type="button" onClick={() => setIsConfirmOpen(true)} className="btn btn-primary">
+                      <button type="button" onClick={() => setIsConfirmOpen(true)} className="btn" style={{ background: "var(--success)", color: "white", borderColor: "var(--success)" }}>
                         Add to story
                       </button>
                     </motion.div>
